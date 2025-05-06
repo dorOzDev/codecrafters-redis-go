@@ -15,28 +15,19 @@ func main() {
 		fmt.Println("Failed to bind to port 6379")
 		os.Exit(1)
 	}
-	conn, err := l.Accept()
-	if err != nil {
-		fmt.Println("Error accepting connection: ", err.Error())
-		os.Exit(1)
-	}
 
-	defer conn.Close()
-	handleConnection(conn)
-	// for {
-	// 	conn, err := l.Accept()
-	// 	if err != nil {
-	// 		fmt.Println("Error accepting connection: ", err.Error())
-	// 		os.Exit(1)
-	// 	}
-	// 	fmt.Println("in for loop")
-	// 	go handleConnection(conn)
-	// }
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			fmt.Println("Error accepting connection: ", err.Error())
+			os.Exit(1)
+		}
+		go handleConnection(conn)
+	}
 
 }
 
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
-	fmt.Println("writing pong")
 	conn.Write([]byte("+PONG\r\n"))
 }
