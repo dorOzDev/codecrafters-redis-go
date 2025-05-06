@@ -22,16 +22,16 @@ func main() {
 	}
 
 	defer conn.Close()
-
-	for {
-		conn, err := l.Accept()
-		if err != nil {
-			fmt.Println("Error accepting connection: ", err.Error())
-			os.Exit(1)
-		}
-		fmt.Println("in for loop")
-		go handleConnection(conn)
-	}
+	handleConnection(conn)
+	// for {
+	// 	conn, err := l.Accept()
+	// 	if err != nil {
+	// 		fmt.Println("Error accepting connection: ", err.Error())
+	// 		os.Exit(1)
+	// 	}
+	// 	fmt.Println("in for loop")
+	// 	go handleConnection(conn)
+	// }
 
 }
 
