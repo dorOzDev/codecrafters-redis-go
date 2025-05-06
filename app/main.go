@@ -29,6 +29,7 @@ func main() {
 			fmt.Println("Error accepting connection: ", err.Error())
 			os.Exit(1)
 		}
+		fmt.Println("in for loop")
 		go handleConnection(conn)
 	}
 
@@ -36,5 +37,6 @@ func main() {
 
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
+	fmt.Println("writing pong")
 	conn.Write([]byte("+PONG\r\n"))
 }
