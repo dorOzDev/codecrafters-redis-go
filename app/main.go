@@ -33,6 +33,7 @@ func handleConnection(conn net.Conn) {
 	scanner := bufio.NewScanner(conn)
 	for scanner.Scan() {
 		text := scanner.Text()
+		fmt.Println(text)
 		conn.Write([]byte(handleCommand(text)))
 	}
 }
