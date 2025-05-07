@@ -33,8 +33,59 @@ func handleConnection(conn net.Conn) {
 	scanner := bufio.NewScanner(conn)
 	for scanner.Scan() {
 		text := scanner.Text()
-		if strings.TrimSpace(text) == "PING" {
-			conn.Write([]byte("+PONG\r\n"))
-		}
+		conn.Write([]byte(handleCommand(text)))
 	}
+}
+
+func handleCommand(text string) string {
+	cleanString := strings.TrimSpace(text)
+	commandHandler, exsits := handlerMap.Get(cleanString)
+	if exsits {
+		fmt.Print("running function ", commandHandler.handlerName())
+		return commandHandler.handlerFunc()(cleanString)
+	}
+
+	return ""
+}
+
+type CommandHandler interface {
+	handlerName() string
+	handlerFunc() HandlerFunc
+}
+
+type PingCommandHandler struct{}
+
+func (PingCommandHandler) handlerName() string {
+	return "ping handler"
+}
+
+func (PingCommandHandler) handlerFunc() HandlerFunc {
+	return handlePong
+}
+
+type EchoCommandHandler struct{}
+
+func (EchoCommandHandler) handlerName() string {
+	return "echo handler"
+}
+
+func (EchoCommandHandler) handlerFunc() HandlerFunc {
+	return handleEcho
+}
+
+type HandlerFunc func(str string) string
+
+var handlerMap = NewCaseInsensitiveMap[CommandHandler]()
+
+func init() {
+	handlerMap.Set("PONG", PingCommandHandler{})
+	handlerMap.Set("ECHO", EchoCommandHandler{})
+}
+
+func handlePong(str string) string {
+	return "+PONG\r\n"
+}
+
+func handleEcho(str string) string {
+	return fmt.Sprintf("+%s\r\n", str)
 }
