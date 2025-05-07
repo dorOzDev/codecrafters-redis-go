@@ -34,6 +34,7 @@ func handleConnection(conn net.Conn) {
 		text := scanner.Text()
 		handler, exists := handlerMap.Get(text)
 		if exists {
+			scanner.Scan()
 			value := scanner.Text()
 			fmt.Printf("running handler %s, with value: %s", handler.handlerName(), value)
 			conn.Write([]byte(handler.handlerFunc()(value)))
