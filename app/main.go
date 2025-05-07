@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 )
 
 func main() {
@@ -35,8 +36,10 @@ func handleConnection(conn net.Conn) {
 		handler, exists := handlerMap.Get(text)
 		if exists {
 			scanner.Scan()
+			n := scanner.Text()
+			scanner.Scan()
 			value := scanner.Text()
-			fmt.Printf("running handler %s, with value: %s", handler.handlerName(), value)
+			fmt.Printf("running handler %s, with value: %s, total bytes: %s", handler.handlerName(), value, strings.Replace(n, "$", "", 1))
 			conn.Write([]byte(handler.handlerFunc()(value)))
 		}
 	}
