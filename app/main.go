@@ -41,6 +41,8 @@ func handleConnection(conn net.Conn) {
 			value := scanner.Text()
 			fmt.Printf("running handler %s, with value: %s, total bytes: %s", handler.handlerName(), value, strings.Replace(n, "$", "", 1))
 			conn.Write([]byte(handler.handlerFunc()(value)))
+		} else {
+			fmt.Print("no suiteable handler found for", text)
 		}
 	}
 }
