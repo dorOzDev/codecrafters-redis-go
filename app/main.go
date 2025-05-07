@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strings"
 )
 
 func main() {
@@ -33,23 +32,17 @@ func handleConnection(conn net.Conn) {
 	scanner := bufio.NewScanner(conn)
 	for scanner.Scan() {
 		text := scanner.Text()
-		fmt.Printf("debug: %s", text)
-		//conn.Write([]byte(handleCommand(text)))
+		handler, exists := handlerMap.Get(text)
+		if exists {
+			value := scanner.Text()
+			fmt.Printf("running handler %s, with value: %s", handler.handlerName(), value)
+			conn.Write([]byte(handler.handlerFunc()(value)))
+		}
 	}
-}
-
-func handleCommand(text string) string {
-	cleanString := strings.TrimSpace(text)
-	commandHandler, exsits := handlerMap.Get(cleanString)
-	if exsits {
-		fmt.Print("running function ", commandHandler.handlerName())
-		return commandHandler.handlerFunc()(cleanString)
-	}
-
-	return ""
 }
 
 type CommandHandler interface {
+	commandName() string
 	handlerName() string
 	handlerFunc() HandlerFunc
 }
@@ -58,6 +51,10 @@ type PingCommandHandler struct{}
 
 func (PingCommandHandler) handlerName() string {
 	return "ping handler"
+}
+
+func (PingCommandHandler) commandName() string {
+	return "PING"
 }
 
 func (PingCommandHandler) handlerFunc() HandlerFunc {
@@ -70,6 +67,10 @@ func (EchoCommandHandler) handlerName() string {
 	return "echo handler"
 }
 
+func (EchoCommandHandler) commandName() string {
+	return "ECHO"
+}
+
 func (EchoCommandHandler) handlerFunc() HandlerFunc {
 	return handleEcho
 }
@@ -79,8 +80,14 @@ type HandlerFunc func(str string) string
 var handlerMap = NewCaseInsensitiveMap[CommandHandler]()
 
 func init() {
-	handlerMap.Set("PONG", PingCommandHandler{})
-	handlerMap.Set("ECHO", EchoCommandHandler{})
+	handlers := []CommandHandler{
+		PingCommandHandler{},
+		EchoCommandHandler{},
+	}
+
+	for _, handler := range handlers {
+		handlerMap.Set(handler.commandName(), handler)
+	}
 }
 
 func handlePong(str string) string {
