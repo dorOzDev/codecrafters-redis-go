@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"net"
 	"os"
 )
@@ -33,12 +34,32 @@ func handleConnection(conn net.Conn) {
 	fmt.Println("New connection")
 
 	for {
-		lines, err := parseRESPValue(reader)
+		val, err := parseRESPValue(reader)
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
 
-		fmt.Printf("Received: %q\n", lines)
+		fmt.Printf("Received: %q\n", val)
+
+		if val.Type != Array {
+			fmt.Fprintln(conn, "-ERR expected array")
+			return
+		}
+
+		cmd, err := ParseRESPCommandFromArray(val.Array)
+		if err != nil {
+			fmt.Fprintf(conn, "-ERR %v\r\n", err)
+			return
+		}
+
+		response := cmd.Execute()
+		serializedData, err := response.Serialize()
+		if err != nil {
+			log.Println("failed to write response:", err)
+			return
+		}
+
+		conn.Write(serializedData)
 	}
 }
