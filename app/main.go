@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strings"
 )
 
 func main() {
@@ -30,76 +29,16 @@ func main() {
 
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
-	scanner := bufio.NewScanner(conn)
-	for scanner.Scan() {
-		text := scanner.Text()
-		handler, exists := handlerMap.Get(text)
-		if exists {
-			scanner.Scan()
-			n := scanner.Text()
-			scanner.Scan()
-			value := scanner.Text()
-			fmt.Printf("running handler %s, with value: %s, total bytes: %s", handler.handlerName(), value, strings.Replace(n, "$", "", 1))
-			conn.Write([]byte(handler.handlerFunc()(value)))
-		} else {
-			fmt.Print("no suiteable handler found for", text)
+	reader := bufio.NewReader(conn)
+	fmt.Println("New connection")
+
+	for {
+		lines, err := parseRESPValue(reader)
+		if err != nil {
+			fmt.Println(err)
+			return
 		}
+
+		fmt.Printf("Received: %q\n", lines)
 	}
-}
-
-type CommandHandler interface {
-	commandName() string
-	handlerName() string
-	handlerFunc() HandlerFunc
-}
-
-type PingCommandHandler struct{}
-
-func (PingCommandHandler) handlerName() string {
-	return "ping handler"
-}
-
-func (PingCommandHandler) commandName() string {
-	return "PING"
-}
-
-func (PingCommandHandler) handlerFunc() HandlerFunc {
-	return handlePong
-}
-
-type EchoCommandHandler struct{}
-
-func (EchoCommandHandler) handlerName() string {
-	return "echo handler"
-}
-
-func (EchoCommandHandler) commandName() string {
-	return "ECHO"
-}
-
-func (EchoCommandHandler) handlerFunc() HandlerFunc {
-	return handleEcho
-}
-
-type HandlerFunc func(str string) string
-
-var handlerMap = NewCaseInsensitiveMap[CommandHandler]()
-
-func init() {
-	handlers := []CommandHandler{
-		PingCommandHandler{},
-		EchoCommandHandler{},
-	}
-
-	for _, handler := range handlers {
-		handlerMap.Set(handler.commandName(), handler)
-	}
-}
-
-func handlePong(str string) string {
-	return "+PONG\r\n"
-}
-
-func handleEcho(str string) string {
-	return fmt.Sprintf("+%s\r\n", str)
 }
