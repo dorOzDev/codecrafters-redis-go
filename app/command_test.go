@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -165,4 +166,47 @@ func TestSetGetCommands_ThreadSafety(t *testing.T) {
 	}
 
 	wg.Wait()
+}
+
+func TestConfigCommand(t *testing.T) {
+	ResetStore()
+	originalArgs := os.Args
+	defer func() { os.Args = originalArgs }()
+
+	const (
+		TEST_DIR       = "/tmp/test-dir"
+		DB_FILE_NAME   = "test.rdb"
+		FlagDir        = "--dir"
+		FlagDbFilename = "--dbfilename"
+	)
+
+	os.Args = []string{
+		"your_program", FlagDir, TEST_DIR, FlagDbFilename, DB_FILE_NAME,
+	}
+
+	tests := []struct {
+		name          string
+		flag          string
+		expectedKey   string
+		expectedValue string
+	}{
+		{"Get dir", FlagDir[2:], FlagDir[2:], TEST_DIR},
+		{"Get dbFilename", FlagDbFilename[2:], FlagDbFilename[2:], DB_FILE_NAME},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			command := NewConfigCommand([]RESPValue{
+				{Type: BulkString, String: CommandCONFIG},
+				{Type: BulkString, String: "GET"},
+				{Type: BulkString, String: test.flag},
+			})
+
+			resp := command.Execute()
+			assert.Equal(t, Array, resp.Type)
+			assert.Len(t, resp.Array, 2)
+			assert.Equal(t, test.expectedKey, resp.Array[0].String)
+			assert.Equal(t, test.expectedValue, resp.Array[1].String)
+		})
+	}
 }

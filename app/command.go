@@ -113,10 +113,11 @@ func (c *ConfigCommand) Execute() RESPValue {
 	}
 
 	argName := c.values[2]
+
 	argValue, exists := GetFlagValue(argName.String)
 
 	if !exists {
-		return RESPValue{Type: Error, String: ""}
+		return RESPValue{Type: Array, Array: []RESPValue{}}
 	}
 
 	var responseArr []RESPValue
@@ -133,7 +134,7 @@ func init() {
 	commandRegistry[CommandECHO] = NewEchoCommand
 	commandRegistry[CommandSET] = NewSetCommand
 	commandRegistry[CommandGET] = NewGetCommand
-	commandRegistry[CommandCONFIG] = NewGetCommand
+	commandRegistry[CommandCONFIG] = NewConfigCommand
 }
 
 var commandRegistry = map[string]CommandFactory{}
