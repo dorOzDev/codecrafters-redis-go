@@ -56,17 +56,20 @@ func TestParseRESPValue(t *testing.T) {
 			},
 		},
 		{
-			name:  "Array - SET command",
-			input: "*3\r\n$3\r\nSET\r\n$5\r\nmykey\r\n$5\r\nvalue\r\n",
+			name:  "Array - SET command with PX",
+			input: "*5\r\n$3\r\nSET\r\n$5\r\nmykey\r\n$5\r\nvalue\r\n$2\r\nPX\r\n$3\r\n100\r\n",
 			expected: RESPValue{
 				Type: Array,
 				Array: []RESPValue{
 					{Type: BulkString, String: CommandSET},
 					{Type: BulkString, String: "mykey"},
 					{Type: BulkString, String: "value"},
+					{Type: BulkString, String: "PX"},
+					{Type: BulkString, String: "100"},
 				},
 			},
 		},
+
 		{
 			name:  "Array - GET command",
 			input: "*2\r\n$3\r\nGET\r\n$5\r\nmykey\r\n",

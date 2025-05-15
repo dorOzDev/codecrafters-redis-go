@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestPingCommand_Execute(t *testing.T) {
@@ -29,27 +32,72 @@ func TestEchoCommand_Execute(t *testing.T) {
 	}
 }
 
-func TestSetGetCommand_Execute(t *testing.T) {
+func TestSetCommand_NoTTL(t *testing.T) {
 	ResetStore()
-	setCmd := NewSetCommand([]RESPValue{
-		{Type: BulkString, String: CommandSET},
-		{Type: BulkString, String: "mykey"},
-		{Type: BulkString, String: "myval"},
-	})
-	setResp := setCmd.Execute()
-	if setResp.Type != SimpleString || setResp.String != "OK" {
-		t.Errorf("SET expected OK, got %v", setResp)
+
+	cmd := &SetCommand{
+		values: []RESPValue{
+			{Type: BulkString, String: "SET"},
+			{Type: BulkString, String: "foo"},
+			{Type: BulkString, String: "bar"},
+		},
 	}
 
-	// GET mykey
-	getCmd := NewGetCommand([]RESPValue{
-		{Type: BulkString, String: CommandGET},
-		{Type: BulkString, String: "mykey"},
-	})
-	getResp := getCmd.Execute()
-	if getResp.Type != BulkString || getResp.String != "myval" {
-		t.Errorf("GET expected myval, got %v", getResp)
+	resp := cmd.Execute()
+
+	assert.Equal(t, "OK", resp.String)
+
+	entry, ok := store.Get("foo")
+	assert.True(t, ok)
+	assert.Equal(t, "bar", entry.Val)
+	assert.Equal(t, InfiniteTTL, entry.TTL)
+}
+
+func TestSetCommand_WithTTL(t *testing.T) {
+	ResetStore()
+
+	cmd := &SetCommand{
+		values: []RESPValue{
+			{Type: BulkString, String: "SET"},
+			{Type: BulkString, String: "expiring"},
+			{Type: BulkString, String: "soon"},
+			{Type: BulkString, String: "PX"},
+			{Type: BulkString, String: "50"},
+		},
 	}
+
+	resp := cmd.Execute()
+	assert.Equal(t, "OK", resp.String)
+
+	time.Sleep(60 * time.Millisecond)
+
+	_, ok := store.Get("expiring")
+	assert.False(t, ok)
+}
+
+func TestSetCommand_InvalidPX(t *testing.T) {
+	tests := []string{"notanumber", "-1"}
+	for _, ttl := range tests {
+		t.Run("PX="+ttl, func(t *testing.T) {
+			ResetStore()
+			testInvalidPX(t, ttl)
+		})
+	}
+}
+
+func testInvalidPX(t *testing.T, ttl string) {
+	cmd := &SetCommand{
+		values: []RESPValue{
+			{Type: BulkString, String: "SET"},
+			{Type: BulkString, String: "x"},
+			{Type: BulkString, String: "y"},
+			{Type: BulkString, String: "PX"},
+			{Type: BulkString, String: ttl},
+		},
+	}
+
+	resp := cmd.Execute()
+	assert.Equal(t, Error, resp.Type)
 }
 
 func TestGetCommand_MissingKey(t *testing.T) {

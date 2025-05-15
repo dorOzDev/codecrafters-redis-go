@@ -1,10 +1,16 @@
 package main
 
-import "sync"
+import (
+	"sync"
+	"time"
+)
+
+const InfiniteTTL time.Duration = 0
 
 type Store interface {
-	Set(key, value string)
-	Get(key string) (string, bool)
+	Set(key string, value Entry)
+	Get(key string) (Entry, bool)
+	Delete(key string) bool
 }
 
 var store Store
@@ -15,24 +21,52 @@ func init() {
 
 func NewInMemoryStore() Store {
 	return &inMemoryStore{
-		data: make(map[string]string),
+		data: make(map[string]Entry),
 	}
 }
 
 type inMemoryStore struct {
-	mu   sync.RWMutex
-	data map[string]string
+	mutex sync.RWMutex
+	data  map[string]Entry
 }
 
-func (s *inMemoryStore) Set(key, value string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.data[key] = value
+func (store *inMemoryStore) Set(key string, value Entry) {
+	store.mutex.Lock()
+	defer store.mutex.Unlock()
+	value.CreatedAt = time.Now()
+	store.data[key] = value
 }
 
-func (s *inMemoryStore) Get(key string) (string, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	val, ok := s.data[key]
-	return val, ok
+func (store *inMemoryStore) Get(key string) (Entry, bool) {
+	store.mutex.RLock()
+	entry, ok := store.data[key]
+	store.mutex.RUnlock()
+
+	if !ok {
+		return Entry{}, false
+	}
+
+	if entry.TTL != InfiniteTTL && time.Since(entry.CreatedAt) > entry.TTL {
+		store.Delete(key)
+		return Entry{}, false
+	}
+
+	return entry, true
+}
+
+func (store *inMemoryStore) Delete(key string) bool {
+	store.mutex.Lock()
+	defer store.mutex.Unlock()
+
+	if _, exists := store.data[key]; exists {
+		delete(store.data, key)
+		return true
+	}
+	return false
+}
+
+type Entry struct {
+	Val       string
+	TTL       time.Duration
+	CreatedAt time.Time
 }

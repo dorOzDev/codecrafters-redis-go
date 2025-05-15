@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -58,7 +60,23 @@ func (s *SetCommand) Execute() RESPValue {
 		return RESPValue{Type: Error, String: "ERR wrong number of argument for SET commands"}
 	}
 
-	store.Set(s.values[1].String, s.values[2].String)
+	key := s.values[1].String
+	value := s.values[2].String
+	var ttl time.Duration = InfiniteTTL
+
+	if len(s.values) >= 5 && strings.ToUpper(s.values[3].String) == "PX" {
+		ttlMillis, err := strconv.Atoi(s.values[4].String)
+		if err != nil || ttlMillis < 0 {
+			return RESPValue{Type: Error, String: "EPR PX value must be a non-negative interger"}
+		}
+		ttl = time.Duration(ttlMillis) * time.Millisecond
+	}
+
+	store.Set(key, Entry{
+		Val: value,
+		TTL: ttl,
+	})
+
 	return RESPValue{Type: SimpleString, String: "OK"}
 }
 
@@ -79,7 +97,7 @@ func (g *GetCommand) Execute() RESPValue {
 		return RESPValue{Type: BulkString, IsNil: true}
 	}
 
-	return RESPValue{Type: BulkString, String: value}
+	return RESPValue{Type: BulkString, String: value.Val}
 }
 
 type CommandFactory func([]RESPValue) RESPCommand
