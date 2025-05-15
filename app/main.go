@@ -40,7 +40,7 @@ func handleConnection(conn net.Conn) {
 			return
 		}
 
-		fmt.Printf("Received: %q\n", val)
+		fmt.Println("Received:", val.Type)
 
 		if val.Type != Array {
 			fmt.Fprintln(conn, "-ERR expected array")

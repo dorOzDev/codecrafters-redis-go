@@ -6,31 +6,6 @@ import (
 	"testing"
 )
 
-func equalRESPValue(a, b RESPValue) bool {
-	if a.Type != b.Type {
-		return false
-	}
-
-	switch a.Type {
-	case SimpleString, Error, BulkString:
-		return a.String == b.String
-	case Integer:
-		return a.Integer == b.Integer
-	case Array:
-		if len(a.Array) != len(b.Array) {
-			return false
-		}
-		for i := range a.Array {
-			if !equalRESPValue(a.Array[i], b.Array[i]) {
-				return false
-			}
-		}
-		return true
-	default:
-		return false
-	}
-}
-
 func TestParseRESPValue(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -70,13 +45,36 @@ func TestParseRESPValue(t *testing.T) {
 			},
 		},
 		{
-			name:  "Array of Bulk Strings",
+			name:  "Array - ECHO command",
 			input: "*2\r\n$4\r\nECHO\r\n$3\r\nhey\r\n",
 			expected: RESPValue{
 				Type: Array,
 				Array: []RESPValue{
-					{Type: BulkString, String: "ECHO"},
+					{Type: BulkString, String: CommandECHO},
 					{Type: BulkString, String: "hey"},
+				},
+			},
+		},
+		{
+			name:  "Array - SET command",
+			input: "*3\r\n$3\r\nSET\r\n$5\r\nmykey\r\n$5\r\nvalue\r\n",
+			expected: RESPValue{
+				Type: Array,
+				Array: []RESPValue{
+					{Type: BulkString, String: CommandSET},
+					{Type: BulkString, String: "mykey"},
+					{Type: BulkString, String: "value"},
+				},
+			},
+		},
+		{
+			name:  "Array - GET command",
+			input: "*2\r\n$3\r\nGET\r\n$5\r\nmykey\r\n",
+			expected: RESPValue{
+				Type: Array,
+				Array: []RESPValue{
+					{Type: BulkString, String: CommandGET},
+					{Type: BulkString, String: "mykey"},
 				},
 			},
 		},
@@ -90,7 +88,7 @@ func TestParseRESPValue(t *testing.T) {
 				t.Fatalf("Unexpected error: %v", err)
 			}
 
-			if !equalRESPValue(got, test.expected) {
+			if !EqualRESPValue(got, test.expected) {
 				t.Errorf("Mismatch:\nGot: %+v\nExpected: %+v", got, test.expected)
 			}
 		})
