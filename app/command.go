@@ -8,10 +8,11 @@ import (
 )
 
 const (
-	CommandPING = "PING"
-	CommandECHO = "ECHO"
-	CommandSET  = "SET"
-	CommandGET  = "GET"
+	CommandPING   = "PING"
+	CommandECHO   = "ECHO"
+	CommandSET    = "SET"
+	CommandGET    = "GET"
+	CommandCONFIG = "CONFIG"
 )
 
 type RESPCommand interface {
@@ -100,6 +101,31 @@ func (g *GetCommand) Execute() RESPValue {
 	return RESPValue{Type: BulkString, String: value.Val}
 }
 
+type ConfigCommand struct {
+	values []RESPValue
+}
+
+func (c *ConfigCommand) Name() string      { return CommandCONFIG }
+func (c *ConfigCommand) Args() []RESPValue { return c.values[1:] }
+func (c *ConfigCommand) Execute() RESPValue {
+	if len(c.values) < 3 {
+		return RESPValue{Type: Error, String: "ERR wrong number of arguments for CONFIG GET"}
+	}
+
+	argName := c.values[2]
+	argValue, exists := GetFlagValue(argName.String)
+
+	if !exists {
+		return RESPValue{Type: Error, String: ""}
+	}
+
+	var responseArr []RESPValue
+	responseArr = append(responseArr, RESPValue{Type: BulkString, String: argName.String})
+	responseArr = append(responseArr, RESPValue{Type: BulkString, String: argValue})
+
+	return RESPValue{Type: Array, Array: responseArr}
+}
+
 type CommandFactory func([]RESPValue) RESPCommand
 
 func init() {
@@ -107,6 +133,7 @@ func init() {
 	commandRegistry[CommandECHO] = NewEchoCommand
 	commandRegistry[CommandSET] = NewSetCommand
 	commandRegistry[CommandGET] = NewGetCommand
+	commandRegistry[CommandCONFIG] = NewGetCommand
 }
 
 var commandRegistry = map[string]CommandFactory{}
@@ -142,4 +169,8 @@ func NewSetCommand(values []RESPValue) RESPCommand {
 
 func NewGetCommand(values []RESPValue) RESPCommand {
 	return &GetCommand{values: values}
+}
+
+func NewConfigCommand(values []RESPValue) RESPCommand {
+	return &ConfigCommand{values: values}
 }

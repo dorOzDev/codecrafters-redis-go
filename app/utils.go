@@ -1,6 +1,9 @@
 package main
 
-import "strings"
+import (
+	"os"
+	"strings"
+)
 
 type CaseInsensitiveMap[T any] struct {
 	data map[string]T
@@ -23,3 +26,18 @@ func (m *CaseInsensitiveMap[T]) Exists(key string) bool {
 	_, exists := m.data[strings.ToLower(key)]
 	return exists
 }
+
+func GetFlagValue(flagName string) (string, bool) {
+	args := os.Args
+	for i, arg := range args {
+		if arg == flagName && i+1 < len(args) {
+			return args[i+1], true
+		}
+	}
+	return "", false
+}
+
+const (
+	FlagDir        = "--dir"
+	FlagDbFilename = "--dbfilename"
+)
