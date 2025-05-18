@@ -33,7 +33,10 @@ type inMemoryStore struct {
 func (store *inMemoryStore) Set(key string, value Entry) {
 	store.mutex.Lock()
 	defer store.mutex.Unlock()
-	value.CreatedAt = time.Now()
+	if value.CreatedAt.IsZero() {
+		value.CreatedAt = time.Now()
+	}
+
 	store.data[key] = value
 }
 

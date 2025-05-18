@@ -24,6 +24,7 @@ func main() {
 			fmt.Println("Error accepting connection: ", err.Error())
 			os.Exit(1)
 		}
+		LoadRDBFile("", "dump.rdb", store)
 		go handleConnection(conn)
 	}
 }
