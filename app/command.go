@@ -13,6 +13,7 @@ const (
 	CommandSET    = "SET"
 	CommandGET    = "GET"
 	CommandCONFIG = "CONFIG"
+	CommandKEYS   = "KEYS"
 )
 
 type RESPCommand interface {
@@ -127,6 +128,32 @@ func (c *ConfigCommand) Execute() RESPValue {
 	return RESPValue{Type: Array, Array: responseArr}
 }
 
+type KeysCommand struct {
+	values []RESPValue
+}
+
+func (*KeysCommand) Name() string       { return CommandKEYS }
+func (k KeysCommand) Args() []RESPValue { return k.values[1:] }
+func (k *KeysCommand) Execute() RESPValue {
+	if len(k.values) != 2 {
+		return RESPValue{Type: Error, String: "ERR wrong number of arguments for KEYS command"}
+	}
+
+	pattern := k.values[1].String
+	if pattern != "*" {
+		return RESPValue{Type: Error, String: "ERR only KEYS * is supported"}
+	}
+
+	keys := store.Keys()
+
+	respKeys := make([]RESPValue, 0, len(keys))
+	for _, key := range keys {
+		respKeys = append(respKeys, RESPValue{Type: BulkString, String: key})
+	}
+
+	return RESPValue{Type: Array, Array: respKeys}
+}
+
 type CommandFactory func([]RESPValue) RESPCommand
 
 func init() {
@@ -135,6 +162,7 @@ func init() {
 	commandRegistry[CommandSET] = NewSetCommand
 	commandRegistry[CommandGET] = NewGetCommand
 	commandRegistry[CommandCONFIG] = NewConfigCommand
+	commandRegistry[CommandKEYS] = NewKeysCommand
 }
 
 var commandRegistry = map[string]CommandFactory{}
@@ -174,4 +202,8 @@ func NewGetCommand(values []RESPValue) RESPCommand {
 
 func NewConfigCommand(values []RESPValue) RESPCommand {
 	return &ConfigCommand{values: values}
+}
+
+func NewKeysCommand(values []RESPValue) RESPCommand {
+	return &KeysCommand{values: values}
 }

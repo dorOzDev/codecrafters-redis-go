@@ -10,6 +10,7 @@ const InfiniteTTL time.Duration = 0
 type Store interface {
 	Set(key string, value Entry)
 	Get(key string) (Entry, bool)
+	Keys() []string
 	Delete(key string) bool
 }
 
@@ -66,6 +67,23 @@ func (store *inMemoryStore) Delete(key string) bool {
 		return true
 	}
 	return false
+}
+
+func (store *inMemoryStore) Keys() []string {
+	store.mutex.RLock()
+	defer store.mutex.RUnlock()
+
+	var keys []string
+
+	for key, entry := range store.data {
+		if entry.TTL != InfiniteTTL && time.Since(entry.CreatedAt) > entry.TTL {
+			store.Delete(key)
+			continue
+		}
+		keys = append(keys, key)
+	}
+
+	return keys
 }
 
 type Entry struct {
