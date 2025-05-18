@@ -174,10 +174,8 @@ func TestConfigCommand(t *testing.T) {
 	defer func() { os.Args = originalArgs }()
 
 	const (
-		TEST_DIR       = "/tmp/test-dir"
-		DB_FILE_NAME   = "test.rdb"
-		FlagDir        = "--dir"
-		FlagDbFilename = "--dbfilename"
+		TEST_DIR     = "/tmp/test-dir"
+		DB_FILE_NAME = "test.rdb"
 	)
 
 	os.Args = []string{

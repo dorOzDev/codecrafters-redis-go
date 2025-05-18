@@ -41,23 +41,6 @@ func LoadRDBFile(dir, dbFilename string, store Store) error {
 }
 
 func parseRDB(reader io.Reader, store Store) error {
-	header := make([]byte, 9)
-	if _, err := io.ReadFull(reader, header); err != nil {
-		return fmt.Errorf("failed to read RDB header: %w", err)
-	}
-
-	fmt.Println(string(header))
-	fmt.Println(string(header[:5]))
-	fmt.Println(string(header[5:]))
-
-	if string(header[:5]) != RDB_MAGIC_STRING || string(header[5:]) != RDB_VERSION {
-		return fmt.Errorf("invalid RDB header: got %s", string(header))
-	}
-
-	if versionPart, err := strconv.Atoi(string(header[5:])); err != nil {
-		return fmt.Errorf("invalid RDB version (not a number): %d: error: %w", versionPart, err)
-	}
-
 	visitor := &RDBStoreVisitor{store: store}
 	_, err := parseHeader(visitor).
 		Next(parseMetadata(visitor)).
