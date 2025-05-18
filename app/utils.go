@@ -20,3 +20,8 @@ func GetFlagValue(flagName string) (string, bool) {
 	fmt.Println("did not find any value for flag: ", flagName)
 	return "", false
 }
+
+const (
+	FlagDir        = "--dir"
+	FlagDbFilename = "--dbfilename"
+)

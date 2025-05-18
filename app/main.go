@@ -24,7 +24,9 @@ func main() {
 			fmt.Println("Error accepting connection: ", err.Error())
 			os.Exit(1)
 		}
-		LoadRDBFile("", "dump.rdb", store)
+		dir, _ := GetFlagValue(FlagDir)
+		dbFileName, _ := GetFlagValue(FlagDbFilename)
+		LoadRDBFile(dir, dbFileName, store)
 		go handleConnection(conn)
 	}
 }
