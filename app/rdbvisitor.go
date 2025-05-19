@@ -10,6 +10,7 @@ type RDBVisitor interface {
 	OnAuxField(key, value string)
 	OnDBStart(dbIndex int)
 	OnEntry(key, value string, ttlMillis int64)
+	OnResizeDB(dbResize int, expireSize int)
 }
 
 type RDBStoreVisitor struct {
@@ -32,6 +33,10 @@ func (visitor *RDBStoreVisitor) OnAuxField(k, val string) {
 func (visitor *RDBStoreVisitor) OnDBStart(index int) {
 	visitor.db = index
 	fmt.Printf("Switched to DB %d\n", index)
+}
+
+func (visitor *RDBStoreVisitor) OnResizeDB(dbResize int, expireSize int) {
+	fmt.Printf("dbResize: %d, expireSize: %d\n", dbResize, expireSize)
 }
 
 func (visitor *RDBStoreVisitor) OnEntry(key, value string, ttlMillis int64) {
