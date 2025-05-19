@@ -19,8 +19,8 @@ func main() {
 	}
 
 	dir, _ := GetFlagValue(FlagDir)
-	//dbFileName, _ := GetFlagValue(FlagDbFilename)
-	err = LoadRDBFile(dir, "dump.rdb", store)
+	dbFileName, _ := GetFlagValue(FlagDbFilename)
+	err = LoadRDBFile(dir, dbFileName, store)
 
 	if err != nil {
 		fmt.Println("Error loading RDB file: ", err.Error())
