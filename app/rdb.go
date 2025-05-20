@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -332,18 +333,17 @@ func parseMetadata(visitor RDBVisitor) ParserFunc {
 
 func parseDb(visitor RDBVisitor) ParserFunc {
 	return func(reader io.Reader) (io.Reader, error) {
-		var ttlMillis int64 = 0
+		var expireAt *int64 = nil // nil means no expiration
 
 		for {
-			peeked, updatedReader, err := peekNBytes(reader, 1)
+			opcode := make([]byte, 1)
+			_, err := reader.Read(opcode) // consume opcode
 			if err != nil {
 				return nil, err
 			}
-			reader = updatedReader
 
-			switch peeked[0] {
+			switch opcode[0] {
 			case 0xFE: // SELECTDB
-				_, _ = reader.Read(make([]byte, 1)) // consume opcode
 				dbNumberEnc, err := readLengthEncoded(reader)
 				if err != nil {
 					return nil, err
@@ -351,26 +351,27 @@ func parseDb(visitor RDBVisitor) ParserFunc {
 				visitor.OnDBStart(dbNumberEnc.Value)
 
 			case 0xFD: // EXPIRETIME_MS
-				_, _ = reader.Read(make([]byte, 1)) // consume opcode
-				buf, err := readNBytes(reader, 8)
-				if err != nil {
-					return nil, err
-				}
-				expireAt := int64(binary.LittleEndian.Uint64(buf))
-				ttlMillis = expireAt - time.Now().UnixMilli()
-
-			case 0xFC: // EXPIRETIME (seconds)
-				_, _ = reader.Read(make([]byte, 1))
 				buf, err := readNBytes(reader, 4)
 				if err != nil {
 					return nil, err
 				}
-				expireAt := int64(binary.LittleEndian.Uint32(buf)) * 1000
-				ttlMillis = expireAt - time.Now().UnixMilli()
+				raw := binary.LittleEndian.Uint32(buf)
+				val := int64(raw)
+				expireAt = &val
+
+			case 0xFC: // EXPIRETIME (seconds)
+				buf, err := readNBytes(reader, 8)
+				if err != nil {
+					return nil, err
+				}
+				raw := binary.LittleEndian.Uint64(buf)
+				if raw > math.MaxInt64 {
+					return nil, fmt.Errorf("expire time value too large to convert to int64: %d", raw)
+				}
+				val := int64(raw)
+				expireAt = &val
 
 			case 0xFB: // RESIZEDB
-				_, _ = reader.Read(make([]byte, 1)) // consume opcode
-
 				dbSize, err := readLengthEncoded(reader)
 				if err != nil {
 					return nil, err
@@ -379,12 +380,9 @@ func parseDb(visitor RDBVisitor) ParserFunc {
 				if err != nil {
 					return nil, err
 				}
-
-				// Optional: hook in visitor if you want to track this info
 				visitor.OnResizeDB(dbSize.Value, expireSize.Value)
 
 			case 0x00: // String key and value
-				_, _ = reader.Read(make([]byte, 1))
 				key, err := readRdbString(reader)
 				if err != nil {
 					return nil, err
@@ -393,14 +391,28 @@ func parseDb(visitor RDBVisitor) ParserFunc {
 				if err != nil {
 					return nil, err
 				}
-				visitor.OnEntry(key, value, ttlMillis)
-				ttlMillis = 0 // reset after each entry
+
+				if expireAt != nil {
+					ttlMillis := *expireAt - time.Now().UnixMilli()
+					if ttlMillis > 0 {
+						visitor.OnEntry(key, value, ttlMillis)
+					}
+				} else {
+					visitor.OnEntry(key, value, 0)
+				}
+
+				expireAt = nil
 
 			case 0xFF: // EOF
+				// TODO add support for checksum. for now just validate reading to buffer succufully
+				_, err := readNBytes(reader, 8)
+				if err != nil {
+					return nil, fmt.Errorf("unable to read CRC64 checksum: %v", err)
+				}
 				return nil, nil
 
 			default:
-				return nil, fmt.Errorf("unsupported opcode: 0x%02X", peeked[0])
+				return nil, fmt.Errorf("unsupported opcode: 0x%02X", opcode[0])
 			}
 		}
 	}
