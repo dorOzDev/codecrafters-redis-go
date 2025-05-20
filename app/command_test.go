@@ -51,7 +51,7 @@ func TestSetCommand_NoTTL(t *testing.T) {
 	entry, ok := store.Get("foo")
 	assert.True(t, ok)
 	assert.Equal(t, "bar", entry.Val)
-	assert.Equal(t, InfiniteTTL, entry.TTL)
+	assert.Nil(t, entry.ExpireAt)
 }
 
 func TestSetCommand_WithTTL(t *testing.T) {

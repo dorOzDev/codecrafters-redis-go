@@ -64,19 +64,20 @@ func (s *SetCommand) Execute() RESPValue {
 
 	key := s.values[1].String
 	value := s.values[2].String
-	var ttl time.Duration = InfiniteTTL
+	var expireAt *int64 = nil
 
 	if len(s.values) >= 5 && strings.ToUpper(s.values[3].String) == "PX" {
 		ttlMillis, err := strconv.Atoi(s.values[4].String)
 		if err != nil || ttlMillis < 0 {
-			return RESPValue{Type: Error, String: "EPR PX value must be a non-negative interger"}
+			return RESPValue{Type: Error, String: "ERR PX value must be a non-negative integer"}
 		}
-		ttl = time.Duration(ttlMillis) * time.Millisecond
+		exp := time.Now().UnixMilli() + int64(ttlMillis)
+		expireAt = &exp
 	}
 
 	store.Set(key, Entry{
-		Val: value,
-		TTL: ttl,
+		Val:      value,
+		ExpireAt: expireAt,
 	})
 
 	return RESPValue{Type: SimpleString, String: "OK"}

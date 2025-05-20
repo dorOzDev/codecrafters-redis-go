@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"time"
 )
 
 type RDBVisitor interface {
@@ -40,19 +39,10 @@ func (visitor *RDBStoreVisitor) OnResizeDB(dbResize int, expireSize int) {
 }
 
 func (visitor *RDBStoreVisitor) OnEntry(key, value string, ttlMillis int64) {
-	now := time.Now()
-	var createdAt time.Time
-
-	if ttlMillis > 0 {
-		createdAt = now.Add(-time.Duration(ttlMillis) * time.Millisecond)
-	} else {
-		createdAt = now
-	}
-
+	fmt.Printf("DB %d: key: %s, value: %s, ttl: %d\n", visitor.db, key, value, ttlMillis)
 	entry := Entry{
-		Val:       value,
-		TTL:       time.Duration(ttlMillis) * time.Millisecond,
-		CreatedAt: createdAt,
+		Val:      value,
+		ExpireAt: &ttlMillis,
 	}
 
 	visitor.store.Set(key, entry)

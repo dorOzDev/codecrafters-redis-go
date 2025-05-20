@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"time"
 
 	"github.com/taroim/rdb/lzf"
 )
@@ -388,18 +387,7 @@ func parseDb(visitor RDBVisitor) ParserFunc {
 					return nil, err
 				}
 				value, err := readRdbString(reader)
-				if err != nil {
-					return nil, err
-				}
-
-				if expireAt != nil {
-					ttlMillis := *expireAt - time.Now().UnixMilli()
-					if ttlMillis > 0 {
-						visitor.OnEntry(key, value, ttlMillis)
-					}
-				} else {
-					visitor.OnEntry(key, value, 0)
-				}
+				visitor.OnEntry(key, value, *expireAt)
 
 				expireAt = nil
 

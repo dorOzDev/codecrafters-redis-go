@@ -5,8 +5,6 @@ import (
 	"time"
 )
 
-const InfiniteTTL time.Duration = 0
-
 type Store interface {
 	Set(key string, value Entry)
 	Get(key string) (Entry, bool)
@@ -34,11 +32,9 @@ type inMemoryStore struct {
 func (store *inMemoryStore) Set(key string, value Entry) {
 	store.mutex.Lock()
 	defer store.mutex.Unlock()
-	if value.CreatedAt.IsZero() {
-		value.CreatedAt = time.Now()
+	if !value.IsExpired() {
+		store.data[key] = value
 	}
-
-	store.data[key] = value
 }
 
 func (store *inMemoryStore) Get(key string) (Entry, bool) {
@@ -50,12 +46,16 @@ func (store *inMemoryStore) Get(key string) (Entry, bool) {
 		return Entry{}, false
 	}
 
-	if entry.TTL != InfiniteTTL && time.Since(entry.CreatedAt) > entry.TTL {
+	if entry.IsExpired() {
 		store.Delete(key)
 		return Entry{}, false
 	}
 
 	return entry, true
+}
+
+func (e Entry) IsExpired() bool {
+	return e.ExpireAt != nil && time.Now().UnixMilli() >= *e.ExpireAt
 }
 
 func (store *inMemoryStore) Delete(key string) bool {
@@ -76,7 +76,7 @@ func (store *inMemoryStore) Keys() []string {
 	var keys []string
 
 	for key, entry := range store.data {
-		if entry.TTL != InfiniteTTL && time.Since(entry.CreatedAt) > entry.TTL {
+		if entry.IsExpired() {
 			store.Delete(key)
 			continue
 		}
@@ -87,7 +87,6 @@ func (store *inMemoryStore) Keys() []string {
 }
 
 type Entry struct {
-	Val       string
-	TTL       time.Duration
-	CreatedAt time.Time
+	Val      string
+	ExpireAt *int64
 }
