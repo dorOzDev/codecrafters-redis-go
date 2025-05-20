@@ -387,6 +387,9 @@ func parseDb(visitor RDBVisitor) ParserFunc {
 					return nil, err
 				}
 				value, err := readRdbString(reader)
+				if err != nil {
+					return nil, err
+				}
 				visitor.OnEntry(key, value, *expireAt)
 
 				expireAt = nil
