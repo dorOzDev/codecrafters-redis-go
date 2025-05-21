@@ -14,6 +14,7 @@ const (
 	CommandGET    = "GET"
 	CommandCONFIG = "CONFIG"
 	CommandKEYS   = "KEYS"
+	CommandINFO   = "INFO"
 )
 
 type RESPCommand interface {
@@ -133,8 +134,8 @@ type KeysCommand struct {
 	values []RESPValue
 }
 
-func (*KeysCommand) Name() string       { return CommandKEYS }
-func (k KeysCommand) Args() []RESPValue { return k.values[1:] }
+func (*KeysCommand) Name() string        { return CommandKEYS }
+func (k *KeysCommand) Args() []RESPValue { return k.values[1:] }
 func (k *KeysCommand) Execute() RESPValue {
 	if len(k.values) != 2 {
 		return RESPValue{Type: Error, String: "ERR wrong number of arguments for KEYS command"}
@@ -155,6 +156,28 @@ func (k *KeysCommand) Execute() RESPValue {
 	return RESPValue{Type: Array, Array: respKeys}
 }
 
+type InfoCommand struct {
+	values []RESPValue
+}
+
+func (*InfoCommand) Name() string        { return CommandINFO }
+func (i *InfoCommand) Args() []RESPValue { return i.values[1:] }
+func (i *InfoCommand) Execute() RESPValue {
+	var args []string
+	for _, arg := range i.values[1:] {
+		args = append(args, arg.String)
+	}
+
+	sections := getSectionsByNames(args...)
+
+	var stringBuilder strings.Builder
+	for _, section := range sections {
+		stringBuilder.Write([]byte(section.GetInfo()))
+	}
+
+	return RESPValue{Type: BulkString, String: strings.TrimSpace(stringBuilder.String())}
+}
+
 type CommandFactory func([]RESPValue) RESPCommand
 
 func init() {
@@ -164,6 +187,7 @@ func init() {
 	commandRegistry[CommandGET] = NewGetCommand
 	commandRegistry[CommandCONFIG] = NewConfigCommand
 	commandRegistry[CommandKEYS] = NewKeysCommand
+	commandRegistry[CommandINFO] = NewInfoCommand
 }
 
 var commandRegistry = map[string]CommandFactory{}
@@ -207,4 +231,8 @@ func NewConfigCommand(values []RESPValue) RESPCommand {
 
 func NewKeysCommand(values []RESPValue) RESPCommand {
 	return &KeysCommand{values: values}
+}
+
+func NewInfoCommand(values []RESPValue) RESPCommand {
+	return &InfoCommand{values: values}
 }
