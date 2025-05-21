@@ -390,7 +390,7 @@ func parseDb(visitor RDBVisitor) ParserFunc {
 				if err != nil {
 					return nil, err
 				}
-				visitor.OnEntry(key, value, *expireAt)
+				visitor.OnEntry(key, value, expireAt)
 
 				expireAt = nil
 

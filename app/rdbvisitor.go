@@ -8,7 +8,7 @@ type RDBVisitor interface {
 	OnHeader(version int)
 	OnAuxField(key, value string)
 	OnDBStart(dbIndex int)
-	OnEntry(key, value string, ttlMillis int64)
+	OnEntry(key, value string, ttlMillis *int64)
 	OnResizeDB(dbResize int, expireSize int)
 }
 
@@ -38,11 +38,11 @@ func (visitor *RDBStoreVisitor) OnResizeDB(dbResize int, expireSize int) {
 	fmt.Printf("dbResize: %d, expireSize: %d\n", dbResize, expireSize)
 }
 
-func (visitor *RDBStoreVisitor) OnEntry(key, value string, ttlMillis int64) {
+func (visitor *RDBStoreVisitor) OnEntry(key, value string, ttlMillis *int64) {
 	fmt.Printf("DB %d: key: %s, value: %s, ttl: %d\n", visitor.db, key, value, ttlMillis)
 	entry := Entry{
 		Val:      value,
-		ExpireAt: &ttlMillis,
+		ExpireAt: ttlMillis,
 	}
 
 	visitor.store.Set(key, entry)
