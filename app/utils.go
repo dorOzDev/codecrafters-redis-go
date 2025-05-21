@@ -24,4 +24,5 @@ func GetFlagValue(flagName string) (string, bool) {
 const (
 	FlagDir        = "--dir"
 	FlagDbFilename = "--dbfilename"
+	FlagPort       = "--port"
 )
