@@ -86,19 +86,19 @@ func getSectionsByNames(names ...string) map[string]InfoSection {
 const replicationTemplate = `# Replication
 role:{{.Role}}
 master_replid:{{.MasterReplid}}
-master_repl_offset:{{MasterReplOffset}}`
+master_repl_offset:{{.MasterReplOffset}}`
 
 type ReplicationData struct {
 	Role             string
 	MasterReplid     string
-	MasperReplOffset int64
+	MasterReplOffset int64
 }
 
 func replicationInfo() string {
 	data := ReplicationData{
 		Role:             getRole(),
 		MasterReplid:     getMasterReplid(),
-		MasperReplOffset: getMasterReplOffset()}
+		MasterReplOffset: getMasterReplOffset()}
 
 	tmpl, err := template.New(InfoSectionReplication).Parse(replicationTemplate)
 	if err != nil {
