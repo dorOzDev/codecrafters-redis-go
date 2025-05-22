@@ -1,10 +1,22 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 	"sync"
+	"text/template"
 )
+
+var role string = "master"
+
+func init() {
+	val, exists := GetFlagValue(FlagReplicaof)
+	if exists {
+		fmt.Println("in replica: ", val)
+		role = "slave"
+	}
+}
 
 type InfoSection struct {
 	Name    string
@@ -20,11 +32,6 @@ var supportedInfoSections = []InfoSection{
 		Name:    InfoSectionReplication,
 		GetInfo: replicationInfo,
 	},
-}
-
-func replicationInfo() string {
-	return `# Replication
- role:master`
 }
 
 var (
@@ -67,4 +74,27 @@ func getSectionsByNames(names ...string) map[string]InfoSection {
 	}
 
 	return filtered
+}
+
+const replicationTemplate = `# Replication
+role:{{.Role}}`
+
+type ReplicationData struct {
+	Role string
+}
+
+func replicationInfo() string {
+	data := ReplicationData{Role: role}
+
+	tmpl, err := template.New(InfoSectionReplication).Parse(replicationTemplate)
+	if err != nil {
+		panic(err) // or log if you prefer not to crash
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		panic(err)
+	}
+
+	return buf.String()
 }

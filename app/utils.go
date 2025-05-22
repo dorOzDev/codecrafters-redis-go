@@ -25,4 +25,5 @@ const (
 	FlagDir        = "--dir"
 	FlagDbFilename = "--dbfilename"
 	FlagPort       = "--port"
+	FlagReplicaof  = "--replicaof"
 )
