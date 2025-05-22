@@ -8,14 +8,21 @@ import (
 	"text/template"
 )
 
-var role string = "master"
+var (
+	role     string = "master"
+	initRole sync.Once
+)
 
-func init() {
-	val, exists := GetFlagValue(FlagReplicaof)
-	if exists {
-		fmt.Println("in replica: ", val)
-		role = "slave"
-	}
+func getRole() string {
+	initRole.Do(func() {
+		val, exists := GetFlagValue(FlagReplicaof)
+		if exists {
+			fmt.Println("in replica: ", val)
+			role = "slave"
+		}
+	})
+
+	return role
 }
 
 type InfoSection struct {
@@ -84,7 +91,7 @@ type ReplicationData struct {
 }
 
 func replicationInfo() string {
-	data := ReplicationData{Role: role}
+	data := ReplicationData{Role: getRole()}
 
 	tmpl, err := template.New(InfoSectionReplication).Parse(replicationTemplate)
 	if err != nil {
