@@ -88,9 +88,30 @@ func handleReplicationIfConfigured() {
 	}
 	defer conn.Close()
 
-	if _, err := conn.Write([]byte("*1\r\n$4\r\nPING\r\n")); err != nil {
-		log.Printf("Failed to send PING to master: %s, error: %q", replicaOf, err)
+	localPort, _ := GetFlagValue(FlagPort)
+	if err := performReplicationHandshake(conn, localPort); err != nil {
+		log.Printf("Replication handshake with master failed: %v", err)
 	}
+}
+
+func performReplicationHandshake(conn net.Conn, localPort string) error {
+	if err := sendPing(conn); err != nil {
+		return fmt.Errorf("PING failed: %w", err)
+	}
+
+	if err := sendReplConf(conn, "listening-port", localPort); err != nil {
+		return fmt.Errorf("REPLCONF listening-port failed: %w", err)
+	}
+
+	if err := sendReplConf(conn, "capa", "psync2"); err != nil {
+		return fmt.Errorf("REPLCONF capa failed: %w", err)
+	}
+
+	if err := sendPsync(conn); err != nil {
+		return fmt.Errorf("PSYNC failed: %w", err)
+	}
+
+	return nil
 }
 
 func resolvePort() string {

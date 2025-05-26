@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"strings"
 )
@@ -42,3 +43,22 @@ const (
 )
 
 const PORT_DEFUALT = "6379"
+
+func sendPing(conn net.Conn) error {
+	_, err := conn.Write([]byte("*1\r\n$4\r\nPING\r\n"))
+	return err
+}
+
+func sendReplConf(conn net.Conn, key, value string) error {
+	cmd := fmt.Sprintf("*3\r\n$8\r\nREPLCONF\r\n$%d\r\n%s\r\n$%d\r\n%s\r\n",
+		len(key), key, len(value), value)
+	_, err := conn.Write([]byte(cmd))
+	return err
+}
+
+func sendPsync(conn net.Conn) error {
+	// This is a minimal PSYNC - full sync for now
+	psyncCmd := "*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$1\r\n-1\r\n"
+	_, err := conn.Write([]byte(psyncCmd))
+	return err
+}

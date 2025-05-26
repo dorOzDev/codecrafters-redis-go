@@ -15,6 +15,7 @@ const (
 	CommandCONFIG = "CONFIG"
 	CommandKEYS   = "KEYS"
 	CommandINFO   = "INFO"
+	CommandREPL   = "REPLCONF"
 )
 
 type RESPCommand interface {
@@ -178,6 +179,27 @@ func (i *InfoCommand) Execute() RESPValue {
 	return RESPValue{Type: BulkString, String: strings.TrimSpace(stringBuilder.String())}
 }
 
+type ReplConfCommand struct {
+	values []RESPValue
+}
+
+func (*ReplConfCommand) Name() string        { return CommandREPL }
+func (r *ReplConfCommand) Args() []RESPValue { return r.values[1:] }
+func (r *ReplConfCommand) Execute() RESPValue {
+	args := r.Args()
+	if len(args)%2 != 0 {
+		return RESPValue{Type: Error, String: "ERR wrong number of arguments for REPLCONF"}
+	}
+
+	for i := 0; i < len(args); i += 2 {
+		key := strings.ToLower(args[i].String)
+		value := args[i+1].String
+		fmt.Printf("REPLCONF: %s = %s\n", key, value)
+	}
+
+	return RESPValue{Type: SimpleString, String: "OK"}
+}
+
 type CommandFactory func([]RESPValue) RESPCommand
 
 func init() {
@@ -188,6 +210,8 @@ func init() {
 	commandRegistry[CommandCONFIG] = NewConfigCommand
 	commandRegistry[CommandKEYS] = NewKeysCommand
 	commandRegistry[CommandINFO] = NewInfoCommand
+	commandRegistry[CommandREPL] = NewReplConfCommand
+
 }
 
 var commandRegistry = map[string]CommandFactory{}
@@ -235,4 +259,8 @@ func NewKeysCommand(values []RESPValue) RESPCommand {
 
 func NewInfoCommand(values []RESPValue) RESPCommand {
 	return &InfoCommand{values: values}
+}
+
+func NewReplConfCommand(values []RESPValue) RESPCommand {
+	return &ReplConfCommand{values: values}
 }
