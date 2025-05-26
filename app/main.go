@@ -31,7 +31,15 @@ func main() {
 		host := master[0]
 		port := master[1]
 
-		conntectToMaster(host, port)
+		conn, err := conntectToMaster(host, port)
+		if err != nil {
+			fmt.Printf("unable to connect with master: %s, due to: %q", replicaOf, err)
+		} else {
+			_, err := conn.Write([]byte("*1\r\n$4\r\nPING\r\n"))
+			if err != nil {
+				fmt.Printf("failed to send ping to master: %s, due to: %q", replicaOf, err)
+			}
+		}
 	}
 
 	l, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%s", port))
