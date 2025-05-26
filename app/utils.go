@@ -45,20 +45,62 @@ const (
 const PORT_DEFUALT = "6379"
 
 func sendPing(conn net.Conn) error {
-	_, err := conn.Write([]byte("*1\r\n$4\r\nPING\r\n"))
-	return err
+	cmd := "*1\r\n$4\r\nPING\r\n"
+	if _, err := conn.Write([]byte(cmd)); err != nil {
+		return err
+	}
+	resp, err := readLine(conn)
+	if err != nil {
+		return err
+	}
+	if !strings.HasPrefix(resp, "+PONG") {
+		return fmt.Errorf("expected +PONG, got %q", resp)
+	}
+	return nil
 }
 
 func sendReplConf(conn net.Conn, key, value string) error {
 	cmd := fmt.Sprintf("*3\r\n$8\r\nREPLCONF\r\n$%d\r\n%s\r\n$%d\r\n%s\r\n",
 		len(key), key, len(value), value)
-	_, err := conn.Write([]byte(cmd))
-	return err
+	if _, err := conn.Write([]byte(cmd)); err != nil {
+		return err
+	}
+	resp, err := readLine(conn)
+	if err != nil {
+		return err
+	}
+	if !strings.HasPrefix(resp, "+OK") {
+		return fmt.Errorf("expected +OK, got %q", resp)
+	}
+	return nil
 }
 
 func sendPsync(conn net.Conn) error {
-	// This is a minimal PSYNC - full sync for now
-	psyncCmd := "*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$1\r\n-1\r\n"
-	_, err := conn.Write([]byte(psyncCmd))
-	return err
+	psyncCmd := "*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n"
+	if _, err := conn.Write([]byte(psyncCmd)); err != nil {
+		return err
+	}
+	resp, err := readLine(conn)
+	if err != nil {
+		return err
+	}
+	if !strings.HasPrefix(resp, "+FULLRESYNC") && !strings.HasPrefix(resp, "+CONTINUE") {
+		return fmt.Errorf("unexpected PSYNC response: %q", resp)
+	}
+	return nil
+}
+
+func readLine(conn net.Conn) (string, error) {
+	buf := make([]byte, 0, 512)
+	tmp := make([]byte, 1)
+	for {
+		_, err := conn.Read(tmp)
+		if err != nil {
+			return "", err
+		}
+		if tmp[0] == '\n' && len(buf) > 0 && buf[len(buf)-1] == '\r' {
+			return string(buf[:len(buf)-1]), nil // strip \r
+		}
+		buf = append(buf, tmp[0])
+	}
 }
