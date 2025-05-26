@@ -6,18 +6,31 @@ import (
 	"strings"
 )
 
+var flagCache = make(map[string]string)
+
 func GetFlagValue(flagName string) (string, bool) {
-	fmt.Println("attempt to get flag: ", flagName)
 	if !strings.HasPrefix(flagName, "--") {
 		flagName = "--" + flagName
 	}
+
+	// Check cache first
+	if val, ok := flagCache[flagName]; ok {
+		fmt.Printf("flag [%s] = %s (cached)\n", flagName, val)
+		return val, true
+	}
+
+	// Search os.Args
 	args := os.Args
 	for i, arg := range args {
 		if arg == flagName && i+1 < len(args) {
-			return args[i+1], true
+			val := args[i+1]
+			flagCache[flagName] = val
+			fmt.Printf("flag [%s] = %s (parsed and cached)\n", flagName, val)
+			return val, true
 		}
 	}
-	fmt.Println("did not find any value for flag: ", flagName)
+
+	fmt.Printf("flag [%s] not found\n", flagName)
 	return "", false
 }
 
