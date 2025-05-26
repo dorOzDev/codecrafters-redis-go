@@ -103,9 +103,9 @@ func performReplicationHandshake(conn net.Conn, localPort string) error {
 		return fmt.Errorf("REPLCONF listening-port failed: %w", err)
 	}
 
-	// if err := sendReplConf(conn, "capa", "psync2"); err != nil {
-	// 	return fmt.Errorf("REPLCONF capa failed: %w", err)
-	// }
+	if err := sendReplConf(conn, "capa", "psync2"); err != nil {
+		return fmt.Errorf("REPLCONF capa failed: %w", err)
+	}
 
 	// if err := sendPsync(conn); err != nil {
 	// 	return fmt.Errorf("PSYNC failed: %w", err)
