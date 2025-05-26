@@ -40,3 +40,5 @@ const (
 	FlagPort       = "--port"
 	FlagReplicaof  = "--replicaof"
 )
+
+const PORT_DEFUALT = "6379"

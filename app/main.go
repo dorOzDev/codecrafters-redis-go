@@ -5,68 +5,21 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"os"
 	"strings"
 	"time"
 )
 
-const PORT_DEFUALT = "6379"
-
 func main() {
-	// You can use print statements as follows for debugging, they'll be visible when running tests.
 	fmt.Println("Logs from your program will appear here!")
 
-	replicaOf, isExists := GetFlagValue(FlagReplicaof)
-	if isExists {
-		fmt.Println("setting replicateof: ", replicaOf)
-		master := strings.Split(replicaOf, " ")
-		if len(master) != 2 {
-			panic(fmt.Errorf("master is expected to be of length two consist of host and port space sapareted. i.e <host> <port>"))
-		}
-		masterHost := master[0]
-		masterPort := master[1]
+	handleReplicationIfConfigured()
+	port := resolvePort()
+	listener := startTCPListener(port)
+	defer listener.Close()
 
-		conn, err := conntectToMaster(masterHost, masterPort)
-		if err != nil {
-			fmt.Printf("unable to connect with master: %s, due to: %q", replicaOf, err)
-		} else {
-			defer conn.Close()
-			_, err := conn.Write([]byte("*1\r\n$4\r\nPING\r\n"))
-			if err != nil {
-				fmt.Printf("failed to send ping to master: %s, due to: %q", replicaOf, err)
-			}
-		}
-	}
+	loadInitialDatabase()
 
-	port, isExists := GetFlagValue(FlagPort)
-	if !isExists {
-		port = PORT_DEFUALT
-		fmt.Println("no port was set by the user using the default", PORT_DEFUALT)
-	}
-
-	l, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%s", port))
-	if err != nil {
-		fmt.Println("Failed to bind to port", port)
-		os.Exit(1)
-	}
-
-	dir, _ := GetFlagValue(FlagDir)
-	dbFileName, _ := GetFlagValue(FlagDbFilename)
-	err = LoadRDBFile(dir, dbFileName, store)
-
-	if err != nil {
-		fmt.Println("Error loading RDB file: ", err.Error())
-	}
-
-	for {
-		conn, err := l.Accept()
-		if err != nil {
-			fmt.Println("Error accepting connection: ", err.Error())
-			os.Exit(1)
-		}
-
-		go handleConnection(conn)
-	}
+	acceptConnections(listener)
 }
 
 func conntectToMaster(host, port string) (net.Conn, error) {
@@ -112,5 +65,66 @@ func handleConnection(conn net.Conn) {
 		}
 
 		conn.Write(serializedData)
+	}
+}
+
+func handleReplicationIfConfigured() {
+	replicaOf, exists := GetFlagValue(FlagReplicaof)
+	if !exists {
+		return
+	}
+
+	fmt.Println("Setting replicaof:", replicaOf)
+	master := strings.Split(replicaOf, " ")
+	if len(master) != 2 {
+		log.Fatalf("Invalid replicaof format. Expected: <host> <port>")
+	}
+	masterHost, masterPort := master[0], master[1]
+
+	conn, err := conntectToMaster(masterHost, masterPort)
+	if err != nil {
+		log.Printf("Unable to connect with master: %s, error: %q", replicaOf, err)
+		return
+	}
+	defer conn.Close()
+
+	if _, err := conn.Write([]byte("*1\r\n$4\r\nPING\r\n")); err != nil {
+		log.Printf("Failed to send PING to master: %s, error: %q", replicaOf, err)
+	}
+}
+
+func resolvePort() string {
+	port, exists := GetFlagValue(FlagPort)
+	if !exists {
+		fmt.Println("No port specified. Using default:", PORT_DEFUALT)
+		return PORT_DEFUALT
+	}
+	return port
+}
+
+func startTCPListener(port string) net.Listener {
+	l, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%s", port))
+	if err != nil {
+		log.Fatalf("Failed to bind to port %s: %v", port, err)
+	}
+	return l
+}
+
+func loadInitialDatabase() {
+	dir, _ := GetFlagValue(FlagDir)
+	dbFileName, _ := GetFlagValue(FlagDbFilename)
+
+	if err := LoadRDBFile(dir, dbFileName, store); err != nil {
+		log.Printf("Error loading RDB file: %v", err)
+	}
+}
+
+func acceptConnections(listener net.Listener) {
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			log.Fatalf("Error accepting connection: %v", err)
+		}
+		go handleConnection(conn)
 	}
 }
