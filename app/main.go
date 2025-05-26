@@ -15,11 +15,6 @@ const PORT_DEFUALT = "6379"
 func main() {
 	// You can use print statements as follows for debugging, they'll be visible when running tests.
 	fmt.Println("Logs from your program will appear here!")
-	port, isExists := GetFlagValue(FlagPort)
-	if !isExists {
-		port = PORT_DEFUALT
-		fmt.Println("no port was set by the user using the default", PORT_DEFUALT)
-	}
 
 	replicaOf, isExists := GetFlagValue(FlagReplicaof)
 	if isExists {
@@ -28,18 +23,25 @@ func main() {
 		if len(master) != 2 {
 			panic(fmt.Errorf("master is expected to be of length two consist of host and port space sapareted. i.e <host> <port>"))
 		}
-		host := master[0]
-		port := master[1]
+		masterHost := master[0]
+		masterPort := master[1]
 
-		conn, err := conntectToMaster(host, port)
+		conn, err := conntectToMaster(masterHost, masterPort)
 		if err != nil {
 			fmt.Printf("unable to connect with master: %s, due to: %q", replicaOf, err)
 		} else {
+			defer conn.Close()
 			_, err := conn.Write([]byte("*1\r\n$4\r\nPING\r\n"))
 			if err != nil {
 				fmt.Printf("failed to send ping to master: %s, due to: %q", replicaOf, err)
 			}
 		}
+	}
+
+	port, isExists := GetFlagValue(FlagPort)
+	if !isExists {
+		port = PORT_DEFUALT
+		fmt.Println("no port was set by the user using the default", PORT_DEFUALT)
 	}
 
 	l, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%s", port))
