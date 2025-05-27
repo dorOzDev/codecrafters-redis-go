@@ -4,6 +4,7 @@ import (
 	"log"
 	"net"
 	"sync"
+	"time"
 )
 
 var (
@@ -19,7 +20,26 @@ func registerReplica(conn net.Conn) {
 		Conn: conn,
 		Addr: conn.RemoteAddr().String(),
 	}
+
 	log.Printf("Registered replica: %s\n", conn.RemoteAddr().String())
+	monitorReplicaConnection(conn)
+}
+
+func monitorReplicaConnection(conn net.Conn) {
+	go func() {
+		ticker := time.NewTicker(60 * time.Second)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			log.Println("ping replica to monitor connection")
+			_, err := conn.Write([]byte("*1\r\n$4\r\nPING\r\n"))
+			if err != nil {
+				log.Printf("Replica %v is unreachable (ping failed): %v", conn.RemoteAddr(), err)
+				unregisterReplica(conn)
+				return
+			}
+		}
+	}()
 }
 
 func unregisterReplica(conn net.Conn) {

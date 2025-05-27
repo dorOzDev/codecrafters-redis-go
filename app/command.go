@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"os"
 	"strconv"
@@ -332,6 +333,7 @@ func (p *PsyncCommand) HandlePostWrite(conn net.Conn) error {
 		return err
 	}
 
+	log.Println("register a replica")
 	registerReplica(conn)
 	return nil
 }

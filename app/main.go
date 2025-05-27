@@ -3,8 +3,10 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"log"
 	"net"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -12,13 +14,13 @@ import (
 func main() {
 	fmt.Println("Logs from your program will appear here!")
 
-	handleReplicationIfConfigured()
 	port := resolvePort()
 	listener := startTCPListener(port)
 	defer listener.Close()
 
 	loadInitialDatabase()
 
+	handleReplicationIfConfigured()
 	acceptConnections(listener)
 }
 
@@ -37,7 +39,12 @@ func handleConnection(conn net.Conn) {
 	reader := bufio.NewReader(conn)
 	fmt.Println("New connection")
 
-	var isReplica = false
+	var isReplica bool
+	defer func() {
+		if !isReplica {
+			conn.Close()
+		}
+	}()
 	for {
 		val, err := parseRESPValue(reader)
 		if err != nil {
@@ -104,7 +111,6 @@ func handleReplicationIfConfigured() {
 		log.Printf("Unable to connect with master: %s, error: %q", replicaOf, err)
 		return
 	}
-	defer conn.Close()
 
 	localPort, _ := GetFlagValue(FlagPort)
 	if err := performReplicationHandshake(conn, localPort); err != nil {
@@ -113,22 +119,54 @@ func handleReplicationIfConfigured() {
 }
 
 func performReplicationHandshake(conn net.Conn, localPort string) error {
+	log.Println("Replica: sending ping")
 	if err := sendPing(conn); err != nil {
 		return fmt.Errorf("PING failed: %w", err)
 	}
 
+	log.Println("Replica: sending listening-port")
 	if err := sendReplConf(conn, "listening-port", localPort); err != nil {
 		return fmt.Errorf("REPLCONF listening-port failed: %w", err)
 	}
 
+	log.Println("Replica: sending cap pysnc2")
 	if err := sendReplConf(conn, "capa", "psync2"); err != nil {
 		return fmt.Errorf("REPLCONF capa failed: %w", err)
 	}
 
+	log.Println("Replica: sending Psync")
 	if err := sendPsync(conn); err != nil {
 		return fmt.Errorf("PSYNC failed: %w", err)
 	}
+	log.Println("Replica: reading bulk header")
 
+	reader := bufio.NewReader(conn)
+	bulkHeader, err := reader.ReadString('\n')
+	if err != nil {
+		return fmt.Errorf("failed to read bulk string header: %w", err)
+	}
+	log.Printf("Bulk Header: %s", bulkHeader)
+
+	if !strings.HasPrefix(bulkHeader, "$") {
+		return fmt.Errorf("expected RESP bulk string, got: %s", bulkHeader)
+	}
+
+	sizeStr := strings.TrimPrefix(bulkHeader, "$")
+	sizeStr = strings.TrimSpace(sizeStr)
+	size, err := strconv.Atoi(sizeStr)
+	if err != nil {
+		return fmt.Errorf("invalid bulk size: %w", err)
+	}
+
+	log.Printf("Reading %d bytes of RDB data from master", size)
+	limitedReader := io.LimitReader(reader, int64(size))
+
+	err = parseRDB(limitedReader, store)
+	if err != nil {
+		return fmt.Errorf("failed to parse RDB data: %w", err)
+	}
+
+	log.Println("Replica: RDB sync complete")
 	return nil
 }
 
