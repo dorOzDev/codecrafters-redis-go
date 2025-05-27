@@ -37,6 +37,7 @@ func handleConnection(conn net.Conn) {
 	reader := bufio.NewReader(conn)
 	fmt.Println("New connection")
 
+	var isReplica = false
 	for {
 		val, err := parseRESPValue(reader)
 		if err != nil {
@@ -70,6 +71,16 @@ func handleConnection(conn net.Conn) {
 			if err := postAction.HandlePostWrite(conn); err != nil {
 				fmt.Printf("Post-Execution action failed: %v", err)
 				return
+			}
+			isReplica = true
+		}
+
+		if !isReplica {
+			if replicableCommand, ok := cmd.(ReplicableCommand); ok {
+				if replicableCommand.ShouldReplicate() {
+					log.Printf("replicating command to all replicas")
+					broadcastToReplicas(RESPValue{Type: Array, Array: val.Array})
+				}
 			}
 		}
 	}

@@ -333,5 +333,14 @@ func (p *PsyncCommand) HandlePostWrite(conn net.Conn) error {
 		return err
 	}
 
+	registerReplica(conn)
 	return nil
+}
+
+type ReplicableCommand interface {
+	ShouldReplicate() bool
+}
+
+func (s *SetCommand) ShouldReplicate() bool {
+	return true
 }
