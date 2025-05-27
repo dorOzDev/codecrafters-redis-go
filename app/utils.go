@@ -84,7 +84,7 @@ func sendPsync(conn net.Conn) error {
 	if err != nil {
 		return err
 	}
-	if !strings.HasPrefix(resp, "+FULLRESYNC") && !strings.HasPrefix(resp, "+CONTINUE") {
+	if !strings.HasPrefix(resp, "+FULLRESYNC") {
 		return fmt.Errorf("unexpected PSYNC response: %q", resp)
 	}
 	return nil

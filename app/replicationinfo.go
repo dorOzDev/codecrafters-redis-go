@@ -38,8 +38,8 @@ type ReplicationData struct {
 func replicationInfo() string {
 	data := ReplicationData{
 		Role:             getRole(),
-		MasterReplid:     getMasterReplid(),
-		MasterReplOffset: getMasterReplOffset()}
+		MasterReplid:     GetMasterReplId(),
+		MasterReplOffset: GetMasterReplOffset()}
 
 	tmpl, err := template.New(InfoSectionReplication).Parse(replicationTemplate)
 	if err != nil {
@@ -54,10 +54,10 @@ func replicationInfo() string {
 	return buf.String()
 }
 
-func getMasterReplid() string {
+func GetMasterReplId() string {
 	return "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
 }
 
-func getMasterReplOffset() int64 {
+func GetMasterReplOffset() int64 {
 	return 0
 }

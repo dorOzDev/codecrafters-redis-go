@@ -16,6 +16,7 @@ const (
 	CommandKEYS   = "KEYS"
 	CommandINFO   = "INFO"
 	CommandREPL   = "REPLCONF"
+	CommandPSYNC  = "PSYNC"
 )
 
 type RESPCommand interface {
@@ -200,6 +201,31 @@ func (r *ReplConfCommand) Execute() RESPValue {
 	return RESPValue{Type: SimpleString, String: "OK"}
 }
 
+type PsyncCommand struct {
+	values []RESPValue
+}
+
+func (*PsyncCommand) Name() string        { return CommandPSYNC }
+func (p *PsyncCommand) Args() []RESPValue { return p.values[1:] }
+
+func (p *PsyncCommand) Execute() RESPValue {
+	args := p.Args()
+	if len(args) != 2 {
+		return RESPValue{Type: Error, String: "ERR wrong number of arguments for PSYNC"}
+	}
+
+	replicationID := args[0].String
+	offset := args[1].String
+
+	fmt.Printf("PSYNC received: replicationID=%s, offset=%s\n", replicationID, offset)
+
+	// Hardcoded full resync response
+	return RESPValue{
+		Type:   SimpleString,
+		String: fmt.Sprintf("FULLRESYNC %s %d", GetMasterReplId(), 0),
+	}
+}
+
 type CommandFactory func([]RESPValue) RESPCommand
 
 func init() {
@@ -211,6 +237,7 @@ func init() {
 	commandRegistry[CommandKEYS] = NewKeysCommand
 	commandRegistry[CommandINFO] = NewInfoCommand
 	commandRegistry[CommandREPL] = NewReplConfCommand
+	commandRegistry[CommandPSYNC] = NewPsyncCommand
 
 }
 
@@ -263,4 +290,8 @@ func NewInfoCommand(values []RESPValue) RESPCommand {
 
 func NewReplConfCommand(values []RESPValue) RESPCommand {
 	return &ReplConfCommand{values: values}
+}
+
+func NewPsyncCommand(values []RESPValue) RESPCommand {
+	return &PsyncCommand{values: values}
 }
