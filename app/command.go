@@ -2,6 +2,9 @@ package main
 
 import (
 	"fmt"
+	"io"
+	"net"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -294,4 +297,41 @@ func NewReplConfCommand(values []RESPValue) RESPCommand {
 
 func NewPsyncCommand(values []RESPValue) RESPCommand {
 	return &PsyncCommand{values: values}
+}
+
+/**if any Post command action is required, the command can imlement this interface*/
+type PostCommandExecuteAction interface {
+	HandlePostWrite(conn net.Conn) error
+}
+
+func (p *PsyncCommand) HandlePostWrite(conn net.Conn) error {
+	const rdbPath = "data/empty.rdb"
+
+	file, err := os.Open(rdbPath)
+	if err != nil {
+		fmt.Printf("Failed to open RDB files: %v", err)
+		return err
+	}
+
+	defer file.Close()
+
+	info, err := file.Stat()
+	if err != nil {
+		fmt.Printf("Failed to stat RDB file: %v", err)
+		return err
+	}
+
+	header := fmt.Sprintf("$%d\r\n", info.Size())
+
+	if _, err := conn.Write([]byte(header)); err != nil {
+		fmt.Printf("Failed to send RDB header: %v", err)
+		return err
+	}
+
+	if _, err := io.Copy(conn, file); err != nil {
+		fmt.Printf("failed to stream file: %v", err)
+		return err
+	}
+
+	return nil
 }

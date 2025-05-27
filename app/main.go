@@ -65,6 +65,13 @@ func handleConnection(conn net.Conn) {
 		}
 
 		conn.Write(serializedData)
+
+		if postAction, ok := cmd.(PostCommandExecuteAction); ok {
+			if err := postAction.HandlePostWrite(conn); err != nil {
+				fmt.Printf("Post-Execution action failed: %v", err)
+				return
+			}
+		}
 	}
 }
 
