@@ -310,6 +310,8 @@ type PostCommandExecuteAction interface {
 func (p *PsyncCommand) HandlePostWrite(conn net.Conn) error {
 	const rdbPath = "../data/empty.rdb"
 	file, err := os.Open(rdbPath)
+	cwd, _ := os.Getwd()
+	log.Println("#######wokring dir", cwd)
 	if err != nil {
 		log.Printf("Failed to open RDB files: %v", err)
 		return err
