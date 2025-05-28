@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"strings"
 	"sync"
 )
@@ -56,7 +56,7 @@ func getSectionsByNames(names ...string) map[string]InfoSection {
 		if isExist {
 			filtered[name] = section
 		} else {
-			fmt.Println("unsupported info section", name)
+			log.Println("unsupported info section", name)
 		}
 
 	}

@@ -1,8 +1,6 @@
 package main
 
-import (
-	"fmt"
-)
+import "log"
 
 type RDBVisitor interface {
 	OnHeader(version int)
@@ -22,24 +20,24 @@ func NewRDBStoreVisitor(store Store) *RDBStoreVisitor {
 }
 
 func (visitor *RDBStoreVisitor) OnHeader(version int) {
-	fmt.Printf("Parsed RDB version: %d\n", version)
+	log.Printf("Parsed RDB version: %d\n", version)
 }
 
 func (visitor *RDBStoreVisitor) OnAuxField(k, val string) {
-	fmt.Printf("AUX field: %s = %s\n", k, val)
+	log.Printf("AUX field: %s = %s\n", k, val)
 }
 
 func (visitor *RDBStoreVisitor) OnDBStart(index int) {
 	visitor.db = index
-	fmt.Printf("Switched to DB %d\n", index)
+	log.Printf("Switched to DB %d\n", index)
 }
 
 func (visitor *RDBStoreVisitor) OnResizeDB(dbResize int, expireSize int) {
-	fmt.Printf("dbResize: %d, expireSize: %d\n", dbResize, expireSize)
+	log.Printf("dbResize: %d, expireSize: %d\n", dbResize, expireSize)
 }
 
 func (visitor *RDBStoreVisitor) OnEntry(key, value string, ttlMillis *int64) {
-	fmt.Printf("DB %d: key: %s, value: %s, ttl: %d\n", visitor.db, key, value, ttlMillis)
+	log.Printf("DB %d: key: %s, value: %s, ttl: %d\n", visitor.db, key, value, ttlMillis)
 	entry := Entry{
 		Val:      value,
 		ExpireAt: ttlMillis,

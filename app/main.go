@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	fmt.Println("Logs from your program will appear here!")
+	log.Println("Logs from your program will appear here!")
 
 	port := resolvePort()
 	listener := startTCPListener(port)
@@ -31,14 +31,14 @@ func conntectToMaster(host, port string) (net.Conn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to master: %w", err)
 	}
-	fmt.Println("Connected to master at", addr)
+	log.Println("Connected to master at", addr)
 	return conn, nil
 }
 
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
 	reader := bufio.NewReader(conn)
-	fmt.Println("New connection")
+	log.Println("New connection")
 
 	var isReplica bool
 	defer func() {
@@ -49,23 +49,25 @@ func handleConnection(conn net.Conn) {
 	for {
 		val, err := parseRESPValue(reader)
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 			return
 		}
 
-		fmt.Println("Received:", val.Type)
+		log.Println("Received:", val.Type)
 
 		if val.Type != Array {
 			fmt.Fprintln(conn, "-ERR expected array")
 			return
 		}
 
+		log.Println("parsing command")
 		cmd, err := ParseRESPCommandFromArray(val.Array)
 		if err != nil {
 			fmt.Fprintf(conn, "-ERR %v\r\n", err)
 			return
 		}
 
+		log.Println("executing command: ", cmd)
 		response := cmd.Execute()
 		serializedData, err := response.Serialize()
 		if err != nil {
@@ -73,11 +75,12 @@ func handleConnection(conn net.Conn) {
 			return
 		}
 
+		log.Println("writing respose to connection")
 		conn.Write(serializedData)
 
 		if postAction, ok := cmd.(PostCommandExecuteAction); ok {
 			if err := postAction.HandlePostWrite(conn); err != nil {
-				fmt.Printf("Post-Execution action failed: %v", err)
+				log.Printf("Post-Execution action failed: %v", err)
 				return
 			}
 			isReplica = true
@@ -100,7 +103,7 @@ func handleReplicationIfConfigured() {
 		return
 	}
 
-	fmt.Println("Setting replicaof:", replicaOf)
+	log.Println("Setting replicaof:", replicaOf)
 	master := strings.Split(replicaOf, " ")
 	if len(master) != 2 {
 		log.Fatalf("Invalid replicaof format. Expected: <host> <port>")
@@ -200,7 +203,7 @@ func performReplicationHandshake(conn net.Conn, localPort string) error {
 func resolvePort() string {
 	port, exists := GetFlagValue(FlagPort)
 	if !exists {
-		fmt.Println("No port specified. Using default:", PORT_DEFUALT)
+		log.Println("No port specified. Using default:", PORT_DEFUALT)
 		return PORT_DEFUALT
 	}
 	return port

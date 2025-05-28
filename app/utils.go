@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"strings"
@@ -16,7 +17,7 @@ func GetFlagValue(flagName string) (string, bool) {
 
 	// Check cache first
 	if val, ok := flagCache[flagName]; ok {
-		fmt.Printf("flag [%s] = %s (cached)\n", flagName, val)
+		log.Printf("flag [%s] = %s (cached)\n", flagName, val)
 		return val, true
 	}
 
@@ -26,12 +27,12 @@ func GetFlagValue(flagName string) (string, bool) {
 		if arg == flagName && i+1 < len(args) {
 			val := args[i+1]
 			flagCache[flagName] = val
-			fmt.Printf("flag [%s] = %s (parsed and cached)\n", flagName, val)
+			log.Printf("flag [%s] = %s (parsed and cached)\n", flagName, val)
 			return val, true
 		}
 	}
 
-	fmt.Printf("flag [%s] not found\n", flagName)
+	log.Printf("flag [%s] not found\n", flagName)
 	return "", false
 }
 

@@ -200,7 +200,7 @@ func (r *ReplConfCommand) Execute() RESPValue {
 	for i := 0; i < len(args); i += 2 {
 		key := strings.ToLower(args[i].String)
 		value := args[i+1].String
-		fmt.Printf("REPLCONF: %s = %s\n", key, value)
+		log.Printf("REPLCONF: %s = %s\n", key, value)
 	}
 
 	return RESPValue{Type: SimpleString, String: "OK"}
@@ -222,7 +222,7 @@ func (p *PsyncCommand) Execute() RESPValue {
 	replicationID := args[0].String
 	offset := args[1].String
 
-	fmt.Printf("PSYNC received: replicationID=%s, offset=%s\n", replicationID, offset)
+	log.Printf("PSYNC received: replicationID=%s, offset=%s\n", replicationID, offset)
 
 	// Hardcoded full resync response
 	return RESPValue{
@@ -310,7 +310,7 @@ func (p *PsyncCommand) HandlePostWrite(conn net.Conn) error {
 	const rdbPath = "../data/empty.rdb"
 	file, err := os.Open(rdbPath)
 	if err != nil {
-		fmt.Printf("Failed to open RDB files: %v", err)
+		log.Printf("Failed to open RDB files: %v", err)
 		return err
 	}
 
@@ -318,19 +318,19 @@ func (p *PsyncCommand) HandlePostWrite(conn net.Conn) error {
 
 	info, err := file.Stat()
 	if err != nil {
-		fmt.Printf("Failed to stat RDB file: %v", err)
+		log.Printf("Failed to stat RDB file: %v", err)
 		return err
 	}
 
 	header := fmt.Sprintf("$%d\r\n", info.Size())
 
 	if _, err := conn.Write([]byte(header)); err != nil {
-		fmt.Printf("Failed to send RDB header: %v", err)
+		log.Printf("Failed to send RDB header: %v", err)
 		return err
 	}
 
 	if _, err := io.Copy(conn, file); err != nil {
-		fmt.Printf("failed to stream file: %v", err)
+		log.Printf("failed to stream file: %v", err)
 		return err
 	}
 

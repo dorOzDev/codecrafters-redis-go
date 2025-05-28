@@ -2,7 +2,7 @@ package main
 
 import (
 	"bytes"
-	"fmt"
+	"log"
 	"sync"
 	"text/template"
 )
@@ -16,7 +16,7 @@ func getRole() string {
 	initRole.Do(func() {
 		val, exists := GetFlagValue(FlagReplicaof)
 		if exists {
-			fmt.Println("in replica: ", val)
+			log.Println("in replica: ", val)
 			role = "slave"
 		}
 	})

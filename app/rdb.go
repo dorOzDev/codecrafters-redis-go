@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"os"
 	"path/filepath"
@@ -26,19 +27,19 @@ const (
 
 func LoadRDBFile(dir, dbFilename string, store Store) error {
 	if dbFilename == "" {
-		fmt.Println("dbFileName is empty Skipping RDB load.")
+		log.Println("dbFileName is empty Skipping RDB load.")
 		return nil // no file to load
 	}
 
 	path := filepath.Join(dir, dbFilename)
 	absPath, err := filepath.Abs(path)
 	if err != nil {
-		fmt.Printf("failed to resolve RDB path: %s", err)
+		log.Printf("failed to resolve RDB path: %s", err)
 		return nil
 	}
 	file, err := os.Open(absPath)
 	if err != nil {
-		fmt.Printf("Failed to open RDB file at %s: %s\n", absPath, err)
+		log.Printf("Failed to open RDB file at %s: %s\n", absPath, err)
 		return nil
 	}
 	defer file.Close()
