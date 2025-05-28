@@ -78,7 +78,7 @@ func handleConnection(conn net.Conn) {
 
 		log.Println("writing respose to connection")
 		conn.Write(serializedData)
-
+		log.Println("isReplica: ", isReplica)
 		if postAction, ok := cmd.(PostCommandExecuteAction); ok {
 			if err := postAction.HandlePostWrite(conn); err != nil {
 				log.Printf("Post-Execution action failed: %v", err)
