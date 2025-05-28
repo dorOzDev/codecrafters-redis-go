@@ -83,6 +83,7 @@ func (s *SetCommand) Execute() RESPValue {
 		expireAt = &exp
 	}
 
+	log.Printf("setting key: %s, value: %s", key, value)
 	store.Set(key, Entry{
 		Val:      value,
 		ExpireAt: expireAt,
