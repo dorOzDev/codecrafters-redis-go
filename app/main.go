@@ -36,7 +36,6 @@ func conntectToMaster(host, port string) (net.Conn, error) {
 }
 
 func handleConnection(conn net.Conn) {
-	defer conn.Close()
 	reader := bufio.NewReader(conn)
 	log.Println("New connection")
 
