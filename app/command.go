@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -308,10 +309,10 @@ type PostCommandExecuteAction interface {
 }
 
 func (p *PsyncCommand) HandlePostWrite(conn net.Conn) error {
-	const rdbPath = "../data/empty.rdb"
+	rdbPath := getRDBPath()
+	log.Println("open init rdb file from: ", rdbPath)
 	file, err := os.Open(rdbPath)
-	cwd, _ := os.Getwd()
-	log.Println("#######wokring dir", cwd)
+
 	if err != nil {
 		log.Printf("Failed to open RDB files: %v", err)
 		return err
@@ -340,6 +341,22 @@ func (p *PsyncCommand) HandlePostWrite(conn net.Conn) error {
 	log.Println("register a replica")
 	registerReplica(conn)
 	return nil
+}
+
+func getRDBPath() string {
+	// Step 1: Get working directory (e.g., /project-root/app)
+	cwd, err := os.Getwd()
+	if err != nil {
+		log.Fatalf("Failed to get working directory: %v", err)
+	}
+
+	// Step 2: Join to one level up + data/empty.rdb
+	rdbPath := filepath.Join(cwd, "..", "data", "empty.rdb")
+
+	// Step 3: Clean the path to remove any ../ or ./ artifacts
+	rdbPath = filepath.Clean(rdbPath)
+
+	return rdbPath
 }
 
 type ReplicableCommand interface {
