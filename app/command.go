@@ -344,18 +344,14 @@ func (p *PsyncCommand) HandlePostWrite(conn net.Conn) error {
 }
 
 func getRDBPath() string {
-	// Step 1: Get working directory (e.g., /project-root/app)
-	cwd, err := os.Getwd()
+	exePath, err := os.Executable()
 	if err != nil {
-		log.Fatalf("Failed to get working directory: %v", err)
+		log.Fatalf("Failed to get executable path: %v", err)
 	}
-
-	// Step 2: Join to one level up + data/empty.rdb
-	rdbPath := filepath.Join(cwd, "..", "data", "empty.rdb")
-
-	// Step 3: Clean the path to remove any ../ or ./ artifacts
+	exeDir := filepath.Dir(exePath)
+	rdbPath := filepath.Join(exeDir, "..", "data", "empty.rdb")
 	rdbPath = filepath.Clean(rdbPath)
-
+	log.Printf("getRDBPath() -> exe = %q, resolved = %q", exePath, rdbPath)
 	return rdbPath
 }
 
