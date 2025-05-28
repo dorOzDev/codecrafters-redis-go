@@ -16,6 +16,7 @@ func main() {
 
 	port := resolvePort()
 	listener := startTCPListener(port)
+	log.Println("starting tcp server on port: ", port)
 	defer listener.Close()
 
 	loadInitialDatabase()
@@ -116,6 +117,32 @@ func handleReplicationIfConfigured() {
 	if err := performReplicationHandshake(conn, localPort); err != nil {
 		log.Printf("Replication handshake with master failed: %v", err)
 	}
+
+	log.Println(conn.LocalAddr())
+	log.Println(conn.RemoteAddr())
+	go startReplicationReadLoop(conn)
+}
+
+func startReplicationReadLoop(conn net.Conn) {
+
+	reader := bufio.NewReader(conn)
+	for {
+		val, err := parseRESPValue(reader)
+		if err != nil {
+			log.Printf("Replication read error: %v", err)
+			return
+		}
+
+		log.Printf("Received replicated command: %+v", val)
+
+		cmd, err := ParseRESPCommandFromArray(val.Array)
+		if err != nil {
+			log.Printf("Parse error: %v", err)
+			continue
+		}
+
+		cmd.Execute() // Actually applies SET/DEL to the replica's store
+	}
 }
 
 func performReplicationHandshake(conn net.Conn, localPort string) error {
@@ -197,6 +224,7 @@ func loadInitialDatabase() {
 }
 
 func acceptConnections(listener net.Listener) {
+	log.Println("accepting connections")
 	for {
 		conn, err := listener.Accept()
 		if err != nil {

@@ -65,6 +65,7 @@ type SetCommand struct {
 func (s *SetCommand) Name() string      { return CommandSET }
 func (s *SetCommand) Args() []RESPValue { return s.values[1:] }
 func (s *SetCommand) Execute() RESPValue {
+	log.Println("in execute set command")
 	if len(s.values) < 3 {
 		return RESPValue{Type: Error, String: "ERR wrong number of argument for SET commands"}
 	}
