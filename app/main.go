@@ -8,8 +8,11 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
+
+var readyToServer atomic.Bool
 
 func main() {
 	log.Println("Logs from your program will appear here!")
@@ -128,6 +131,11 @@ func handleReplicationIfConfigured() {
 
 func startReplicationReadLoop(conn net.Conn) {
 
+	for !readyToServer.Load() {
+		log.Println("[REPLICA] Not ready yet, blocking client")
+		time.Sleep(10 * time.Millisecond)
+	}
+
 	reader := bufio.NewReader(conn)
 	for {
 		val, err := parseRESPValue(reader)
@@ -197,6 +205,7 @@ func performReplicationHandshake(conn net.Conn, localPort string) error {
 	}
 
 	log.Println("Replica: RDB sync complete")
+	readyToServer.Store(true)
 	return nil
 }
 
