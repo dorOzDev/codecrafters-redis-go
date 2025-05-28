@@ -43,6 +43,7 @@ func handleConnection(conn net.Conn) {
 	var isReplica bool
 	defer func() {
 		if !isReplica {
+			log.Println("closing connection")
 			conn.Close()
 		}
 	}()
