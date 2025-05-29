@@ -12,57 +12,50 @@ import (
 	"time"
 )
 
-type BaseHandler struct {
-	port string
-}
-
-func (b *BaseHandler) initHandler() net.Listener {
-	listener := startTCPListener(b.port)
-	log.Println("starting tcp server on port: ", b.port)
-
-	loadInitialDatabase()
-
-	return listener
-}
-
 type ConnectionHandler interface {
 	HandleConnection() error
+	Close()
 }
 
 type MasterConnectionHandler struct {
-	port string
-	BaseHandler
+	port     string
+	listener net.Listener
 }
 
 func (handler MasterConnectionHandler) HandleConnection() error {
-	listener := handler.initHandler()
-	defer listener.Close()
-	acceptConnections(listener)
+	loadInitialDatabase()
+	acceptConnections(handler.listener)
 
 	return nil
+}
+
+func (handler MasterConnectionHandler) Close() {
+	handler.listener.Close()
 }
 
 type ReplicaConnectionHandler struct {
-	BaseHandler
 	masterHost, masterPort, port string
 	readyToServe                 *atomic.Bool
+	listener                     net.Listener
 }
 
 func (handler ReplicaConnectionHandler) HandleConnection() error {
-	listener := handler.initHandler()
-	defer listener.Close()
-	err := handler.handleReplicationIfConfigured()
+	loadInitialDatabase()
+	err := handler.handleReplication()
 	if err != nil {
 		return err
 	}
-	acceptConnections(listener)
+	acceptConnections(handler.listener)
 
 	return nil
 }
 
-func CreateConnectionHandler() (ConnectionHandler, error) {
+func (handler ReplicaConnectionHandler) Close() {
+	handler.listener.Close()
+}
+
+func CreateConnectionHandler(listener net.Listener, port string) (ConnectionHandler, error) {
 	val, exists := GetFlagValue(FlagReplicaof)
-	port := resolvePort()
 	if exists {
 		log.Println("a new replica connection: ", val)
 		master := strings.Split(val, " ")
@@ -75,30 +68,15 @@ func CreateConnectionHandler() (ConnectionHandler, error) {
 			masterPort:   master[1],
 			readyToServe: new(atomic.Bool),
 			port:         port,
+			listener:     listener,
 		}, nil
 	} else {
 		log.Println("a new master connection")
 		return MasterConnectionHandler{
-			port: port,
+			port:     port,
+			listener: listener,
 		}, nil
 	}
-}
-
-func resolvePort() string {
-	port, exists := GetFlagValue(FlagPort)
-	if !exists {
-		log.Println("No port specified. Using default:", PORT_DEFUALT)
-		return PORT_DEFUALT
-	}
-	return port
-}
-
-func startTCPListener(port string) net.Listener {
-	l, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%s", port))
-	if err != nil {
-		log.Fatalf("Failed to bind to port %s: %v", port, err)
-	}
-	return l
 }
 
 func conntectToMaster(host, port string) (net.Conn, error) {
@@ -173,7 +151,7 @@ func handleConnection(conn net.Conn) {
 	}
 }
 
-func (handler *ReplicaConnectionHandler) handleReplicationIfConfigured() error {
+func (handler *ReplicaConnectionHandler) handleReplication() error {
 	conn, err := conntectToMaster(handler.masterHost, handler.masterPort)
 	if err != nil {
 		log.Printf("Unable to connect with master:, error: %q", err)
