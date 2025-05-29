@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -311,36 +312,64 @@ type PostCommandExecuteAction interface {
 func (p *PsyncCommand) HandlePostWrite(conn net.Conn) error {
 	rdbPath := getRDBPath()
 	log.Println("open init rdb file from: ", rdbPath)
+
+	var rdbReader io.Reader
+	var rdbSize int64
+
 	file, err := os.Open(rdbPath)
-
 	if err != nil {
-		log.Printf("Failed to open RDB files: %v", err)
-		return err
+		if os.IsNotExist(err) {
+			// File doesn't exist — generate minimal empty RDB on the fly
+			log.Println("RDB file does not exist. Generating empty RDB.")
+			emptyRDB := generateEmptyRDB()
+			rdbReader = bytes.NewReader(emptyRDB)
+			rdbSize = int64(len(emptyRDB))
+		} else {
+			log.Printf("Failed to open RDB file: %v", err)
+			return err
+		}
+	} else {
+		defer file.Close()
+		info, err := file.Stat()
+		if err != nil {
+			log.Printf("Failed to stat RDB file: %v", err)
+			return err
+		}
+		rdbReader = file
+		rdbSize = info.Size()
 	}
 
-	defer file.Close()
-
-	info, err := file.Stat()
-	if err != nil {
-		log.Printf("Failed to stat RDB file: %v", err)
-		return err
-	}
-
-	header := fmt.Sprintf("$%d\r\n", info.Size())
-
+	// Send RESP bulk string header
+	header := fmt.Sprintf("$%d\r\n", rdbSize)
 	if _, err := conn.Write([]byte(header)); err != nil {
 		log.Printf("Failed to send RDB header: %v", err)
 		return err
 	}
 
-	if _, err := io.Copy(conn, file); err != nil {
-		log.Printf("failed to stream file: %v", err)
+	// Stream the RDB content
+	if _, err := io.Copy(conn, rdbReader); err != nil {
+		log.Printf("Failed to stream RDB content: %v", err)
 		return err
 	}
 
 	log.Println("register a replica")
 	registerReplica(conn)
 	return nil
+}
+
+func generateEmptyRDB() []byte {
+	var buf bytes.Buffer
+
+	// Magic header: REDIS0009 or REDIS0012 etc.
+	buf.WriteString("REDIS0012")
+
+	// EOF opcode
+	buf.WriteByte(0xFF)
+
+	// 8-byte CRC64 (set to 0 for now unless you want to compute it)
+	buf.Write(make([]byte, 8))
+
+	return buf.Bytes()
 }
 
 func getRDBPath() string {
