@@ -28,23 +28,32 @@ const (
 func LoadRDBFile(dir, dbFilename string, store Store) error {
 	if dbFilename == "" {
 		log.Println("dbFileName is empty Skipping RDB load.")
-		return nil // no file to load
-	}
-
-	path := filepath.Join(dir, dbFilename)
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		log.Printf("failed to resolve RDB path: %s", err)
 		return nil
 	}
-	file, err := os.Open(absPath)
+	file, err := GetFile(dir, dbFilename)
 	if err != nil {
-		log.Printf("Failed to open RDB file at %s: %s\n", absPath, err)
-		return nil
+		log.Println("failed to get file: ", err)
+		return err
 	}
 	defer file.Close()
 
 	return parseRDB(file, store)
+}
+
+func GetFile(dir, dbFilename string) (*os.File, error) {
+	path := filepath.Join(dir, dbFilename)
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		log.Printf("failed to resolve RDB path: %s", err)
+		return nil, err
+	}
+	file, err := os.Open(absPath)
+	if err != nil {
+		log.Printf("Failed to open RDB file at %s: %s\n", absPath, err)
+		return nil, err
+	}
+
+	return file, nil
 }
 
 func parseRDB(reader io.Reader, store Store) error {
