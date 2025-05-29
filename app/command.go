@@ -309,6 +309,10 @@ type PostCommandExecuteAction interface {
 	HandlePostWrite(conn net.Conn) error
 }
 
+func (*PsyncCommand) KeepsConnectionAlive() bool {
+	return true
+}
+
 func (p *PsyncCommand) HandlePostWrite(conn net.Conn) error {
 	rdbPath := getRDBPath()
 	log.Println("open init rdb file from: ", rdbPath)

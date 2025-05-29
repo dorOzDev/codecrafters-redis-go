@@ -89,63 +89,69 @@ func conntectToMaster(host, port string) (net.Conn, error) {
 	return conn, nil
 }
 
-func handleConnection(conn net.Conn) {
+func handleConnection(conn net.Conn) (shouldClose bool) {
+	shouldClose = true
 	reader := bufio.NewReader(conn)
 	log.Println("New connection")
 
-	var isReplica bool
 	defer func() {
-		if !isReplica {
+		if shouldClose {
 			log.Println("closing connection")
 			conn.Close()
+		} else {
+			log.Println("connection handed off to another routine")
 		}
 	}()
+
 	for {
 		val, err := parseRESPValue(reader)
 		if err != nil {
-			log.Println(err)
+			log.Println("parseRESPValue error:", err)
 			return
 		}
-
-		log.Println("Received:", val.Type)
 
 		if val.Type != Array {
 			fmt.Fprintln(conn, "-ERR expected array")
 			return
 		}
 
-		log.Println("parsing command")
 		cmd, err := ParseRESPCommandFromArray(val.Array)
 		if err != nil {
 			fmt.Fprintf(conn, "-ERR %v\r\n", err)
 			return
 		}
 
-		log.Println("executing command: ", cmd)
+		log.Println("executing command:", cmd)
 		response := cmd.Execute()
+
 		serializedData, err := response.Serialize()
 		if err != nil {
+			log.Println("failed to serialize response:", err)
+			return
+		}
+
+		if _, err := conn.Write(serializedData); err != nil {
 			log.Println("failed to write response:", err)
 			return
 		}
 
-		log.Println("writing respose to connection")
-		conn.Write(serializedData)
-		log.Println("isReplica: ", isReplica)
 		if postAction, ok := cmd.(PostCommandExecuteAction); ok {
 			if err := postAction.HandlePostWrite(conn); err != nil {
 				log.Printf("Post-Execution action failed: %v", err)
 				return
 			}
-			isReplica = true
 		}
 
-		if !isReplica {
-			if replicableCommand, ok := cmd.(ReplicableCommand); ok {
-				if replicableCommand.ShouldReplicate() {
-					log.Printf("replicating command to all replicas")
-					broadcastToReplicas(RESPValue{Type: Array, Array: val.Array})
-				}
+		if ka, ok := cmd.(KeepAliveCommand); ok && ka.KeepsConnectionAlive() {
+			log.Println("Command takes over connection lifecycle")
+			shouldClose = false
+			return
+		}
+
+		if replicableCommand, ok := cmd.(ReplicableCommand); ok {
+			if replicableCommand.ShouldReplicate() {
+				log.Println("Replicating command to all replicas")
+				broadcastToReplicas(RESPValue{Type: Array, Array: val.Array})
 			}
 		}
 	}
@@ -265,4 +271,8 @@ func acceptConnections(listener net.Listener) {
 		}
 		go handleConnection(conn)
 	}
+}
+
+type KeepAliveCommand interface {
+	KeepsConnectionAlive() bool
 }
