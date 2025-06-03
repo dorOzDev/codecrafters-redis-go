@@ -437,3 +437,7 @@ type ReplicableCommand interface {
 func (s *SetCommand) ShouldReplicate() bool {
 	return true
 }
+
+func (r *ReplConfCommand) ShouldResponseBackToMaster() bool {
+	return true
+}

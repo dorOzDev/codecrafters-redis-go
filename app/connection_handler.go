@@ -120,18 +120,12 @@ func handleConnection(conn net.Conn) (shouldClose bool) {
 			fmt.Fprintf(conn, "-ERR %v\r\n", err)
 			return
 		}
-
 		log.Println("executing command:", cmd)
 		response := cmd.Execute()
 
-		serializedData, err := response.Serialize()
+		err = writeSerializedDataToConnection(conn, response)
 		if err != nil {
-			log.Println("failed to serialize response:", err)
-			return
-		}
-
-		if _, err := conn.Write(serializedData); err != nil {
-			log.Println("failed to write response:", err)
+			log.Println("fialed to write serialized data to connection: ", err)
 			return
 		}
 
@@ -195,8 +189,15 @@ func (handler *ReplicaConnectionHandler) startReplicationReadLoop(conn net.Conn)
 			log.Printf("Parse error: %v", err)
 			continue
 		}
+		response := cmd.Execute()
 
-		cmd.Execute()
+		if sendResponseToMasterCommand, ok := cmd.(SendResonseToMaster); ok && sendResponseToMasterCommand.ShouldResponseBackToMaster() {
+			err = writeSerializedDataToConnection(conn, response)
+			if err != nil {
+				log.Println("fialed to write serialized data to connection: ", err)
+				return
+			}
+		}
 	}
 }
 
@@ -273,6 +274,26 @@ func acceptConnections(listener net.Listener) {
 	}
 }
 
+func writeSerializedDataToConnection(conn net.Conn, response RESPValue) error {
+
+	serializedData, err := response.Serialize()
+	if err != nil {
+		log.Println("failed to serialize response:", err)
+		return err
+	}
+
+	if _, err := conn.Write(serializedData); err != nil {
+		log.Println("failed to write response:", err)
+		return err
+	}
+
+	return nil
+}
+
 type KeepAliveCommand interface {
 	KeepsConnectionAlive() bool
+}
+
+type SendResonseToMaster interface {
+	ShouldResponseBackToMaster() bool
 }
