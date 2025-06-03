@@ -1,8 +1,12 @@
 package main
 
 import (
+	"bufio"
+	"fmt"
 	"log"
 	"net"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -31,8 +35,7 @@ func monitorReplicaConnection(conn net.Conn) {
 		defer ticker.Stop()
 
 		for range ticker.C {
-			log.Println("ping replica to monitor connection")
-			_, err := conn.Write([]byte("*1\r\n$4\r\nPING\r\n"))
+			_, err := sendAckToReplica(conn)
 			if err != nil {
 				log.Printf("Replica %v is unreachable (ping failed): %v", conn.RemoteAddr(), err)
 				unregisterReplica(conn)
@@ -71,6 +74,43 @@ func broadcastToReplicas(resp RESPValue) {
 			replicaMu.RLock()
 		}
 	}
+}
+func sendAckToReplica(conn net.Conn) (int64, error) {
+	log.Println("sending REPLCONF GETACK * to replica")
+	_, err := conn.Write([]byte("*3\r\n$8\r\nREPLCONF\r\n$6\r\ngetack\r\n$1\r\n*\r\n"))
+	if err != nil {
+		log.Printf("Failed to send REPLCONF GETACK *: %v", err)
+		return 0, err
+	}
+
+	// Wait for ACK response
+	reader := bufio.NewReader(conn)
+	val, err := parseRESPValue(reader)
+	if err != nil {
+		log.Printf("Failed to read ACK from replica: %v", err)
+		return 0, err
+	}
+
+	// Expecting something like: ["REPLCONF", "ACK", "12345"]
+	if val.Type != Array || len(val.Array) != 3 {
+		return 0, fmt.Errorf("unexpected ACK response format: %v", val)
+	}
+
+	cmd := strings.ToUpper(val.Array[0].String)
+	subCmd := strings.ToUpper(val.Array[1].String)
+	offsetStr := val.Array[2].String
+
+	if cmd != "REPLCONF" || subCmd != "ACK" {
+		return 0, fmt.Errorf("unexpected response: %s %s", cmd, subCmd)
+	}
+
+	offset, err := strconv.ParseInt(offsetStr, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid offset in ACK: %v", err)
+	}
+
+	log.Printf("Replica acknowledged offset: %d", offset)
+	return offset, nil
 }
 
 type Replica struct {

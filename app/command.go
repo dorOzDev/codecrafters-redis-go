@@ -194,8 +194,36 @@ type ReplConfCommand struct {
 
 func (*ReplConfCommand) Name() string        { return CommandREPL }
 func (r *ReplConfCommand) Args() []RESPValue { return r.values[1:] }
+
 func (r *ReplConfCommand) Execute() RESPValue {
 	args := r.Args()
+	if len(args) == 0 {
+		return RESPValue{Type: Error, String: "ERR missing arguments for REPLCONF"}
+	}
+
+	subCmd := strings.ToLower(args[0].String)
+
+	if subCmd == "getack" {
+		if len(args) != 2 || args[1].String != "*" {
+			return RESPValue{Type: Error, String: "ERR REPLCONF GETACK requires '*'"}
+		}
+
+		log.Println("Received REPLCONF GETACK *")
+
+		// For now use hardcoded offset (should be the actual replication offset)
+		offset := int64(0) // TODO: get actual offset for this replica
+
+		return RESPValue{
+			Type: Array,
+			Array: []RESPValue{
+				{Type: BulkString, String: "REPLCONF"},
+				{Type: BulkString, String: "ACK"},
+				{Type: BulkString, String: strconv.FormatInt(offset, 10)},
+			},
+		}
+	}
+
+	// Default key-value case
 	if len(args)%2 != 0 {
 		return RESPValue{Type: Error, String: "ERR wrong number of arguments for REPLCONF"}
 	}
@@ -246,7 +274,6 @@ func init() {
 	commandRegistry[CommandINFO] = NewInfoCommand
 	commandRegistry[CommandREPL] = NewReplConfCommand
 	commandRegistry[CommandPSYNC] = NewPsyncCommand
-
 }
 
 var commandRegistry = map[string]CommandFactory{}
@@ -314,6 +341,24 @@ func (*PsyncCommand) KeepsConnectionAlive() bool {
 }
 
 func (p *PsyncCommand) HandlePostWrite(conn net.Conn) error {
+	err := streamRdbFileToReplica(conn)
+	if err != nil {
+		log.Printf("failed streaming rdb file to replica: %v", err)
+		return err
+	}
+
+	log.Println("Sending initial REPLCONF GETACK * after RDB transfer")
+	_, err = sendAckToReplica(conn)
+	if err != nil {
+		log.Printf("failed ack the replica: %v", err)
+		return err
+	}
+	log.Println("register a replica")
+	registerReplica(conn)
+	return nil
+}
+
+func streamRdbFileToReplica(conn net.Conn) error {
 	rdbPath := getRDBPath()
 	log.Println("open init rdb file from: ", rdbPath)
 
@@ -355,9 +400,6 @@ func (p *PsyncCommand) HandlePostWrite(conn net.Conn) error {
 		log.Printf("Failed to stream RDB content: %v", err)
 		return err
 	}
-
-	log.Println("register a replica")
-	registerReplica(conn)
 	return nil
 }
 
