@@ -171,7 +171,6 @@ func (handler *ReplicaConnectionHandler) handleReplication() error {
 		return err
 	}
 
-	handler.readyToServe.Store(true)
 	return nil
 }
 
@@ -254,6 +253,8 @@ func (handler *ReplicaConnectionHandler) performReplicationHandshake(conn net.Co
 	}
 
 	log.Println("Replica: RDB sync complete")
+	handler.readyToServe.Store(true)
+
 	return nil
 }
 
