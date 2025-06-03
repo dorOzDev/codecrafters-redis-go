@@ -45,6 +45,11 @@ func (handler ReplicaConnectionHandler) HandleConnection() error {
 	if err != nil {
 		return err
 	}
+	for !handler.readyToServe.Load() {
+		log.Println("[REPLICA] Not ready yet, blocking client")
+		time.Sleep(10 * time.Millisecond)
+	}
+
 	acceptConnections(handler.listener)
 
 	return nil
@@ -171,11 +176,6 @@ func (handler *ReplicaConnectionHandler) handleReplication() error {
 }
 
 func (handler *ReplicaConnectionHandler) startReplicationReadLoop(conn net.Conn, reader *bufio.Reader) {
-
-	for !handler.readyToServe.Load() {
-		log.Println("[REPLICA] Not ready yet, blocking client")
-		time.Sleep(10 * time.Millisecond)
-	}
 
 	log.Println("[REPLICA] accepting connections")
 
