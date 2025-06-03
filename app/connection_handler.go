@@ -45,7 +45,10 @@ func (handler ReplicaConnectionHandler) HandleConnection() error {
 	if err != nil {
 		return err
 	}
-
+	for !handler.readyToServe.Load() {
+		log.Println("[REPLICA] Not ready yet, blocking client")
+		time.Sleep(10 * time.Millisecond)
+	}
 	acceptConnections(handler.listener)
 
 	return nil
