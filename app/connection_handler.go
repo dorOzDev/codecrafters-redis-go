@@ -174,11 +174,12 @@ func (handler *ReplicaConnectionHandler) startReplicationReadLoop(conn net.Conn)
 		time.Sleep(10 * time.Millisecond)
 	}
 
+	log.Println("[REPLICA] accepting connections")
 	reader := bufio.NewReader(conn)
 	for {
 		val, err := parseRESPValue(reader)
 		if err != nil {
-			log.Printf("Replication read error: %v", err)
+			log.Printf("[REPLICA] read error: %v", err)
 			return
 		}
 
