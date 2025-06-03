@@ -192,6 +192,7 @@ func (handler *ReplicaConnectionHandler) startReplicationReadLoop(conn net.Conn)
 		response := cmd.Execute()
 
 		if sendResponseToMasterCommand, ok := cmd.(SendResonseToMaster); ok && sendResponseToMasterCommand.ShouldResponseBackToMaster() {
+			log.Printf("[REPLICA] writing response to master")
 			err = writeSerializedDataToConnection(conn, response)
 			if err != nil {
 				log.Println("fialed to write serialized data to connection: ", err)
