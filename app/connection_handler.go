@@ -158,16 +158,19 @@ func (handler *ReplicaConnectionHandler) handleReplication() error {
 		return err
 	}
 
-	if err := handler.performReplicationHandshake(conn, handler.port); err != nil {
+	reader := bufio.NewReader(conn)
+	go handler.startReplicationReadLoop(conn, reader)
+
+	if err := handler.performReplicationHandshake(conn, handler.port, reader); err != nil {
 		log.Printf("Replication handshake with master failed: %v", err)
 		return err
 	}
 
-	go handler.startReplicationReadLoop(conn)
+	handler.readyToServe.Store(true)
 	return nil
 }
 
-func (handler *ReplicaConnectionHandler) startReplicationReadLoop(conn net.Conn) {
+func (handler *ReplicaConnectionHandler) startReplicationReadLoop(conn net.Conn, reader *bufio.Reader) {
 
 	for !handler.readyToServe.Load() {
 		log.Println("[REPLICA] Not ready yet, blocking client")
@@ -175,7 +178,7 @@ func (handler *ReplicaConnectionHandler) startReplicationReadLoop(conn net.Conn)
 	}
 
 	log.Println("[REPLICA] accepting connections")
-	reader := bufio.NewReader(conn)
+
 	for {
 		val, err := parseRESPValue(reader)
 		if err != nil {
@@ -203,7 +206,7 @@ func (handler *ReplicaConnectionHandler) startReplicationReadLoop(conn net.Conn)
 	}
 }
 
-func (handler *ReplicaConnectionHandler) performReplicationHandshake(conn net.Conn, localPort string) error {
+func (handler *ReplicaConnectionHandler) performReplicationHandshake(conn net.Conn, localPort string, reader *bufio.Reader) error {
 	log.Println("Replica: sending ping")
 	if err := sendPing(conn); err != nil {
 		return fmt.Errorf("PING failed: %w", err)
@@ -225,7 +228,6 @@ func (handler *ReplicaConnectionHandler) performReplicationHandshake(conn net.Co
 	}
 	log.Println("Replica: reading bulk header")
 
-	reader := bufio.NewReader(conn)
 	bulkHeader, err := reader.ReadString('\n')
 	if err != nil {
 		return fmt.Errorf("failed to read bulk string header: %w", err)
@@ -252,7 +254,6 @@ func (handler *ReplicaConnectionHandler) performReplicationHandshake(conn net.Co
 	}
 
 	log.Println("Replica: RDB sync complete")
-	handler.readyToServe.Store(true)
 	return nil
 }
 
