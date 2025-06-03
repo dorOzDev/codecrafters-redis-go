@@ -160,17 +160,17 @@ func (handler *ReplicaConnectionHandler) handleReplication() error {
 	}
 
 	reader := bufio.NewReader(conn)
-	go handler.startReplicationReadLoop(conn, reader)
 
 	if err := handler.performReplicationHandshake(conn, handler.port, reader); err != nil {
 		log.Printf("Replication handshake with master failed: %v", err)
 		return err
 	}
 
+	go handler.startReplicationRead(conn, reader)
 	return nil
 }
 
-func (handler *ReplicaConnectionHandler) startReplicationReadLoop(conn net.Conn, reader *bufio.Reader) {
+func (handler *ReplicaConnectionHandler) startReplicationRead(conn net.Conn, reader *bufio.Reader) {
 	for !handler.readyToServe.Load() {
 		log.Println("[REPLICA] Not ready yet, blocking client")
 		time.Sleep(10 * time.Millisecond)
