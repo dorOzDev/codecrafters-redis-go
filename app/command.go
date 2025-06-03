@@ -347,12 +347,12 @@ func (p *PsyncCommand) HandlePostWrite(conn net.Conn) error {
 		return err
 	}
 
-	log.Println("Sending initial REPLCONF GETACK * after RDB transfer")
-	_, err = sendAckToReplica(conn)
-	if err != nil {
-		log.Printf("failed ack the replica: %v", err)
-		return err
-	}
+	// log.Println("Sending initial REPLCONF GETACK * after RDB transfer")
+	// _, err = sendAckToReplica(conn)
+	// if err != nil {
+	// 	log.Printf("failed ack the replica: %v", err)
+	// 	return err
+	// }
 	log.Println("register a replica")
 	registerReplica(conn)
 	return nil
