@@ -122,6 +122,7 @@ func NewTrackingBufReader(r io.Reader) *TrackingBufReader {
 func (t *TrackingBufReader) Read(p []byte) (int, error) {
 	n, err := t.Reader.Read(p)
 	t.bytesRead += n
+	log.Println("[TrackingBufReader].Read: read bytes: ", n)
 	return n, err
 }
 
@@ -130,6 +131,7 @@ func (t *TrackingBufReader) ReadByte() (byte, error) {
 	if err == nil {
 		t.bytesRead++
 	}
+	log.Println("[TrackingBufReader].ReadByte")
 	return b, err
 }
 
@@ -138,16 +140,19 @@ func (t *TrackingBufReader) ReadString(delim byte) (string, error) {
 	if err == nil {
 		t.bytesRead += len(s)
 	}
+	log.Println("[TrackingBufReader].ReadString, total: ", len(s))
 	return s, err
 }
 
 func (t *TrackingBufReader) ReadFull(p []byte) error {
 	n, err := io.ReadFull(t.Reader, p)
 	t.bytesRead += n
+	log.Println("[TrackingBufReader].ReadFull, total: ", n)
 	return err
 }
 
 func (t *TrackingBufReader) FlushTo(stats *ReplicaStats) {
+	log.Println("Flushin bytes: ", t.bytesRead)
 	stats.writeBytes(t.bytesRead)
 	t.bytesRead = 0
 }
