@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"strconv"
@@ -9,7 +8,7 @@ import (
 )
 
 type RESPValueGenerator interface {
-	Parse(reader *bufio.Reader) (RESPValue, error)
+	Parse(reader *TrackingBufReader) (RESPValue, error)
 }
 
 var respParsers = map[RESPType]RESPValueGenerator{
@@ -22,7 +21,7 @@ var respParsers = map[RESPType]RESPValueGenerator{
 
 type simpleStringParser struct{}
 
-func (p simpleStringParser) Parse(reader *bufio.Reader) (RESPValue, error) {
+func (p simpleStringParser) Parse(reader *TrackingBufReader) (RESPValue, error) {
 	line, err := reader.ReadString('\n')
 	if err != nil {
 		return RESPValue{}, err
@@ -32,7 +31,7 @@ func (p simpleStringParser) Parse(reader *bufio.Reader) (RESPValue, error) {
 
 type integerParser struct{}
 
-func (p integerParser) Parse(reader *bufio.Reader) (RESPValue, error) {
+func (p integerParser) Parse(reader *TrackingBufReader) (RESPValue, error) {
 	line, err := reader.ReadString('\n')
 	if err != nil {
 		return RESPValue{}, err
@@ -46,7 +45,7 @@ func (p integerParser) Parse(reader *bufio.Reader) (RESPValue, error) {
 
 type arrayParser struct{}
 
-func (p arrayParser) Parse(reader *bufio.Reader) (RESPValue, error) {
+func (p arrayParser) Parse(reader *TrackingBufReader) (RESPValue, error) {
 	line, err := reader.ReadString('\n')
 	if err != nil {
 		return RESPValue{}, err
@@ -73,7 +72,7 @@ func (p arrayParser) Parse(reader *bufio.Reader) (RESPValue, error) {
 	}, nil
 }
 
-func parseRESPValue(reader *bufio.Reader) (RESPValue, error) {
+func parseRESPValue(reader *TrackingBufReader) (RESPValue, error) {
 	prefix, err := reader.ReadByte()
 	if err != nil {
 		return RESPValue{}, err
@@ -89,7 +88,7 @@ func parseRESPValue(reader *bufio.Reader) (RESPValue, error) {
 
 type errorParser struct{}
 
-func (p errorParser) Parse(reader *bufio.Reader) (RESPValue, error) {
+func (p errorParser) Parse(reader *TrackingBufReader) (RESPValue, error) {
 	line, err := reader.ReadString('\n')
 	if err != nil {
 		return RESPValue{}, err
@@ -99,7 +98,7 @@ func (p errorParser) Parse(reader *bufio.Reader) (RESPValue, error) {
 
 type bulkStringParser struct{}
 
-func (p bulkStringParser) Parse(reader *bufio.Reader) (RESPValue, error) {
+func (p bulkStringParser) Parse(reader *TrackingBufReader) (RESPValue, error) {
 	lenLine, err := reader.ReadString('\n')
 	if err != nil {
 		return RESPValue{}, err

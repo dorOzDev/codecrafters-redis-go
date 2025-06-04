@@ -28,7 +28,7 @@ const (
 type RESPCommand interface {
 	Name() string
 	Args() []RESPValue
-	Execute() RESPValue
+	Execute(context CommandContext) RESPValue
 }
 
 type PingCommand struct {
@@ -37,7 +37,7 @@ type PingCommand struct {
 
 func (p *PingCommand) Name() string      { return CommandPING }
 func (p *PingCommand) Args() []RESPValue { return p.values[1:] }
-func (p *PingCommand) Execute() RESPValue {
+func (p *PingCommand) Execute(context CommandContext) RESPValue {
 	return RESPValue{
 		Type:   SimpleString,
 		String: "PONG",
@@ -50,7 +50,7 @@ type EchoCommand struct {
 
 func (e *EchoCommand) Name() string      { return CommandECHO }
 func (e *EchoCommand) Args() []RESPValue { return e.values[1:] }
-func (e *EchoCommand) Execute() RESPValue {
+func (e *EchoCommand) Execute(context CommandContext) RESPValue {
 	if len(e.values) < 2 {
 		return RESPValue{Type: Error, String: "ERR missing argument for ECHO"}
 	}
@@ -66,7 +66,7 @@ type SetCommand struct {
 
 func (s *SetCommand) Name() string      { return CommandSET }
 func (s *SetCommand) Args() []RESPValue { return s.values[1:] }
-func (s *SetCommand) Execute() RESPValue {
+func (s *SetCommand) Execute(context CommandContext) RESPValue {
 	log.Println("in execute set command")
 	if len(s.values) < 3 {
 		return RESPValue{Type: Error, String: "ERR wrong number of argument for SET commands"}
@@ -100,7 +100,7 @@ type GetCommand struct {
 
 func (g *GetCommand) Name() string      { return CommandGET }
 func (g *GetCommand) Args() []RESPValue { return g.values[1:] }
-func (g *GetCommand) Execute() RESPValue {
+func (g *GetCommand) Execute(context CommandContext) RESPValue {
 	if len(g.values) < 2 {
 		return RESPValue{Type: Error, String: "ERR wrong number of argument for GET commands"}
 	}
@@ -120,7 +120,7 @@ type ConfigCommand struct {
 
 func (c *ConfigCommand) Name() string      { return CommandCONFIG }
 func (c *ConfigCommand) Args() []RESPValue { return c.values[1:] }
-func (c *ConfigCommand) Execute() RESPValue {
+func (c *ConfigCommand) Execute(context CommandContext) RESPValue {
 	if len(c.values) < 3 {
 		return RESPValue{Type: Error, String: "ERR wrong number of arguments for CONFIG GET"}
 	}
@@ -146,7 +146,7 @@ type KeysCommand struct {
 
 func (*KeysCommand) Name() string        { return CommandKEYS }
 func (k *KeysCommand) Args() []RESPValue { return k.values[1:] }
-func (k *KeysCommand) Execute() RESPValue {
+func (k *KeysCommand) Execute(context CommandContext) RESPValue {
 	if len(k.values) != 2 {
 		return RESPValue{Type: Error, String: "ERR wrong number of arguments for KEYS command"}
 	}
@@ -172,7 +172,7 @@ type InfoCommand struct {
 
 func (*InfoCommand) Name() string        { return CommandINFO }
 func (i *InfoCommand) Args() []RESPValue { return i.values[1:] }
-func (i *InfoCommand) Execute() RESPValue {
+func (i *InfoCommand) Execute(context CommandContext) RESPValue {
 	var args []string
 	for _, arg := range i.values[1:] {
 		args = append(args, arg.String)
@@ -195,7 +195,7 @@ type ReplConfCommand struct {
 func (*ReplConfCommand) Name() string        { return CommandREPL }
 func (r *ReplConfCommand) Args() []RESPValue { return r.values[1:] }
 
-func (r *ReplConfCommand) Execute() RESPValue {
+func (r *ReplConfCommand) Execute(context CommandContext) RESPValue {
 	args := r.Args()
 	if len(args) == 0 {
 		return RESPValue{Type: Error, String: "ERR missing arguments for REPLCONF"}
@@ -244,7 +244,7 @@ type PsyncCommand struct {
 func (*PsyncCommand) Name() string        { return CommandPSYNC }
 func (p *PsyncCommand) Args() []RESPValue { return p.values[1:] }
 
-func (p *PsyncCommand) Execute() RESPValue {
+func (p *PsyncCommand) Execute(context CommandContext) RESPValue {
 	args := p.Args()
 	if len(args) != 2 {
 		return RESPValue{Type: Error, String: "ERR wrong number of arguments for PSYNC"}
@@ -440,4 +440,9 @@ func (s *SetCommand) ShouldReplicate() bool {
 
 func (r *ReplConfCommand) ShouldResponseBackToMaster() bool {
 	return true
+}
+
+type CommandContext struct {
+	Conn         net.Conn
+	replicaStats *ReplicaStats
 }

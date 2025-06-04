@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"log"
 	"net"
@@ -84,7 +83,7 @@ func sendAckToReplica(conn net.Conn) (int64, error) {
 	}
 
 	// Wait for ACK response
-	reader := bufio.NewReader(conn)
+	reader := NewTrackingBufReader(conn)
 	val, err := parseRESPValue(reader)
 	if err != nil {
 		log.Printf("Failed to read ACK from replica: %v", err)

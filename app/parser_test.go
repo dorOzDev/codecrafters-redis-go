@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"strings"
 	"testing"
 )
@@ -85,7 +84,7 @@ func TestParseRESPValue(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			reader := bufio.NewReader(strings.NewReader(test.input))
+			reader := NewTrackingBufReader(strings.NewReader(test.input))
 			got, err := parseRESPValue(reader)
 			if err != nil {
 				t.Fatalf("Unexpected error: %v", err)

@@ -12,7 +12,7 @@ import (
 
 func TestPingCommand_Execute(t *testing.T) {
 	cmd := NewPingCommand([]RESPValue{{Type: BulkString, String: CommandPING}})
-	resp := cmd.Execute()
+	resp := cmd.Execute(CommandContext{})
 
 	want := RESPValue{Type: SimpleString, String: "PONG"}
 	if !EqualRESPValue(resp, want) {
@@ -25,7 +25,7 @@ func TestEchoCommand_Execute(t *testing.T) {
 		{Type: BulkString, String: CommandECHO},
 		{Type: BulkString, String: "hello"},
 	})
-	resp := cmd.Execute()
+	resp := cmd.Execute(CommandContext{})
 
 	want := RESPValue{Type: SimpleString, String: "hello"}
 	if !EqualRESPValue(resp, want) {
@@ -44,7 +44,7 @@ func TestSetCommand_NoTTL(t *testing.T) {
 		},
 	}
 
-	resp := cmd.Execute()
+	resp := cmd.Execute(CommandContext{})
 
 	assert.Equal(t, "OK", resp.String)
 
@@ -67,7 +67,7 @@ func TestSetCommand_WithTTL(t *testing.T) {
 		},
 	}
 
-	resp := cmd.Execute()
+	resp := cmd.Execute(CommandContext{})
 	assert.Equal(t, "OK", resp.String)
 
 	time.Sleep(60 * time.Millisecond)
@@ -97,7 +97,7 @@ func testInvalidPX(t *testing.T, ttl string) {
 		},
 	}
 
-	resp := cmd.Execute()
+	resp := cmd.Execute(CommandContext{})
 	assert.Equal(t, Error, resp.Type)
 }
 
@@ -107,7 +107,7 @@ func TestGetCommand_MissingKey(t *testing.T) {
 		{Type: BulkString, String: CommandGET},
 		{Type: BulkString, String: "missing"},
 	})
-	resp := getCmd.Execute()
+	resp := getCmd.Execute(CommandContext{})
 
 	if !resp.IsNil || resp.Type != BulkString {
 		t.Errorf("GET missing key should return nil bulk, got %+v", resp)
@@ -135,7 +135,7 @@ func TestSetGetCommands_ThreadSafety(t *testing.T) {
 					{Type: BulkString, String: key},
 					{Type: BulkString, String: fmt.Sprintf("val-%d", j)},
 				})
-				resp := setCmd.Execute()
+				resp := setCmd.Execute(CommandContext{})
 				if resp.Type != SimpleString || resp.String != "OK" {
 					t.Errorf("Set failed for %s: %v", key, resp)
 				}
@@ -155,7 +155,7 @@ func TestSetGetCommands_ThreadSafety(t *testing.T) {
 					{Type: BulkString, String: CommandGET},
 					{Type: BulkString, String: key},
 				})
-				resp := getCmd.Execute()
+				resp := getCmd.Execute(CommandContext{})
 
 				// Only validate non-nil values
 				if !resp.IsNil && resp.Type != BulkString {
@@ -200,7 +200,7 @@ func TestConfigCommand(t *testing.T) {
 				{Type: BulkString, String: test.flag},
 			})
 
-			resp := command.Execute()
+			resp := command.Execute(CommandContext{})
 			assert.Equal(t, Array, resp.Type)
 			assert.Len(t, resp.Array, 2)
 			assert.Equal(t, test.expectedKey, resp.Array[0].String)

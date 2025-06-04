@@ -92,7 +92,7 @@ func conntectToMaster(host, port string) (net.Conn, error) {
 
 func handleConnection(conn net.Conn) (shouldClose bool) {
 	shouldClose = true
-	reader := bufio.NewReader(conn)
+	reader := NewTrackingBufReader(conn)
 	log.Println("New connection")
 
 	defer func() {
@@ -122,7 +122,7 @@ func handleConnection(conn net.Conn) (shouldClose bool) {
 			return
 		}
 		log.Println("executing command:", cmd)
-		response := cmd.Execute()
+		response := cmd.Execute(CommandContext{Conn: conn})
 
 		err = writeSerializedDataToConnection(conn, response)
 		if err != nil {
@@ -159,18 +159,18 @@ func (handler *ReplicaConnectionHandler) handleReplication() error {
 		return err
 	}
 
-	reader := bufio.NewReader(conn)
+	trackBufReader := NewTrackingBufReader(conn)
 
-	if err := handler.performReplicationHandshake(conn, handler.port, reader); err != nil {
+	if err := handler.performReplicationHandshake(conn, handler.port, trackBufReader.Reader); err != nil {
 		log.Printf("Replication handshake with master failed: %v", err)
 		return err
 	}
-
-	go handler.startReplicationRead(conn, reader)
+	stats := &ReplicaStats{}
+	go handler.startReplicationRead(conn, trackBufReader, stats)
 	return nil
 }
 
-func (handler *ReplicaConnectionHandler) startReplicationRead(conn net.Conn, reader *bufio.Reader) {
+func (handler *ReplicaConnectionHandler) startReplicationRead(conn net.Conn, reader *TrackingBufReader, replicaStats *ReplicaStats) {
 	for !handler.readyToServe.Load() {
 		log.Println("[REPLICA] Not ready yet, blocking client")
 		time.Sleep(10 * time.Millisecond)
@@ -191,8 +191,10 @@ func (handler *ReplicaConnectionHandler) startReplicationRead(conn net.Conn, rea
 			log.Printf("Parse error: %v", err)
 			continue
 		}
-		response := cmd.Execute()
-
+		response := cmd.Execute(CommandContext{
+			Conn:         conn,
+			replicaStats: replicaStats,
+		})
 		if sendResponseToMasterCommand, ok := cmd.(SendResonseToMaster); ok && sendResponseToMasterCommand.ShouldResponseBackToMaster() {
 			log.Printf("[REPLICA] writing response to master")
 			err = writeSerializedDataToConnection(conn, response)
@@ -201,6 +203,7 @@ func (handler *ReplicaConnectionHandler) startReplicationRead(conn net.Conn, rea
 				return
 			}
 		}
+		reader.FlushTo(replicaStats)
 	}
 }
 

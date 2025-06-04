@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -104,4 +106,48 @@ func readLine(conn net.Conn) (string, error) {
 		}
 		buf = append(buf, tmp[0])
 	}
+}
+
+type TrackingBufReader struct {
+	*bufio.Reader
+	bytesRead int
+}
+
+func NewTrackingBufReader(r io.Reader) *TrackingBufReader {
+	return &TrackingBufReader{
+		Reader: bufio.NewReader(r),
+	}
+}
+
+func (t *TrackingBufReader) Read(p []byte) (int, error) {
+	n, err := t.Reader.Read(p)
+	t.bytesRead += n
+	return n, err
+}
+
+func (t *TrackingBufReader) ReadByte() (byte, error) {
+	b, err := t.Reader.ReadByte()
+	if err == nil {
+		t.bytesRead++
+	}
+	return b, err
+}
+
+func (t *TrackingBufReader) ReadString(delim byte) (string, error) {
+	s, err := t.Reader.ReadString(delim)
+	if err == nil {
+		t.bytesRead += len(s)
+	}
+	return s, err
+}
+
+func (t *TrackingBufReader) ReadFull(p []byte) error {
+	n, err := io.ReadFull(t.Reader, p)
+	t.bytesRead += n
+	return err
+}
+
+func (t *TrackingBufReader) FlushTo(stats *ReplicaStats) {
+	stats.writeBytes(t.bytesRead)
+	t.bytesRead = 0
 }
