@@ -210,15 +210,14 @@ func (r *ReplConfCommand) Execute(context CommandContext) RESPValue {
 
 		log.Println("Received REPLCONF GETACK *")
 
-		// For now use hardcoded offset (should be the actual replication offset)
-		offset := int64(0) // TODO: get actual offset for this replica
+		offset := context.replicaStats.BytesRead
 
 		return RESPValue{
 			Type: Array,
 			Array: []RESPValue{
 				{Type: BulkString, String: CommandREPL},
 				{Type: BulkString, String: "ACK"},
-				{Type: BulkString, String: strconv.FormatInt(offset, 10)},
+				{Type: BulkString, String: strconv.FormatUint(offset, 10)},
 			},
 		}
 	}
