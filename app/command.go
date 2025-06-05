@@ -23,6 +23,7 @@ const (
 	CommandINFO   = "INFO"
 	CommandREPL   = "REPLCONF"
 	CommandPSYNC  = "PSYNC"
+	CommandWAIT   = "WAIT"
 )
 
 type RESPCommand interface {
@@ -261,6 +262,25 @@ func (p *PsyncCommand) Execute(context CommandContext) RESPValue {
 	}
 }
 
+type WaitCommand struct {
+	values []RESPValue
+}
+
+func (w *WaitCommand) Name() string {
+	return CommandWAIT
+}
+
+func (w *WaitCommand) Args() []RESPValue {
+	return w.values
+}
+
+func (w *WaitCommand) Execute(ctx CommandContext) RESPValue {
+	return RESPValue{
+		Type:    Integer,
+		Integer: 0,
+	}
+}
+
 type CommandFactory func([]RESPValue) RESPCommand
 
 func init() {
@@ -273,6 +293,7 @@ func init() {
 	commandRegistry[CommandINFO] = NewInfoCommand
 	commandRegistry[CommandREPL] = NewReplConfCommand
 	commandRegistry[CommandPSYNC] = NewPsyncCommand
+	commandRegistry[CommandWAIT] = NewCommandWait
 }
 
 var commandRegistry = map[string]CommandFactory{}
@@ -330,6 +351,10 @@ func NewPsyncCommand(values []RESPValue) RESPCommand {
 	return &PsyncCommand{values: values}
 }
 
+func NewCommandWait(values []RESPValue) RESPCommand {
+	return &WaitCommand{values: values}
+}
+
 /**if any Post command action is required, the command can imlement this interface*/
 type PostCommandExecuteAction interface {
 	HandlePostWrite(conn net.Conn) error
@@ -346,12 +371,6 @@ func (p *PsyncCommand) HandlePostWrite(conn net.Conn) error {
 		return err
 	}
 
-	// log.Println("Sending initial REPLCONF GETACK * after RDB transfer")
-	// _, err = sendAckToReplica(conn)
-	// if err != nil {
-	// 	log.Printf("failed ack the replica: %v", err)
-	// 	return err
-	// }
 	log.Println("register a replica")
 	registerReplica(conn)
 	return nil
