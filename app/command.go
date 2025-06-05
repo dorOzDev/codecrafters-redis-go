@@ -278,7 +278,7 @@ func (w *WaitCommand) Args() []RESPValue {
 }
 
 func (w *WaitCommand) Execute(ctx CommandContext) RESPValue {
-	if len(w.Args()) != 2 {
+	if len(w.Args()) != 3 {
 		return RESPValue{
 			Type:   Error,
 			String: "ERR wrong number of arguments for 'WAIT' command",
