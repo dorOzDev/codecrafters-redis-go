@@ -44,6 +44,17 @@ func monitorReplicaConnection(conn net.Conn) {
 	}()
 }
 
+func GetAllConnectedReplicas() []net.Conn {
+	replicaMu.RLock()
+	defer replicaMu.RUnlock()
+
+	conns := make([]net.Conn, 0, len(connectedReplicas))
+	for conn := range connectedReplicas {
+		conns = append(conns, conn)
+	}
+	return conns
+}
+
 func unregisterReplica(conn net.Conn) {
 	replicaMu.Lock()
 	defer replicaMu.Unlock()

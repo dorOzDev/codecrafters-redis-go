@@ -62,6 +62,7 @@ func (e *EchoCommand) Execute(context CommandContext) RESPValue {
 }
 
 type SetCommand struct {
+	BaseWriteCommand
 	values []RESPValue
 }
 
@@ -277,9 +278,17 @@ func (w *WaitCommand) Args() []RESPValue {
 }
 
 func (w *WaitCommand) Execute(ctx CommandContext) RESPValue {
+	if len(w.Args()) != 2 {
+		return RESPValue{
+			Type:   Error,
+			String: "ERR wrong number of arguments for 'WAIT' command",
+		}
+	}
+	replicasConnections := GetAllConnectedReplicas()
+
 	return RESPValue{
 		Type:    Integer,
-		Integer: 0,
+		Integer: int64(len(replicasConnections)),
 	}
 }
 
@@ -465,4 +474,15 @@ func (r *ReplConfCommand) ShouldResponseBackToMaster() bool {
 type CommandContext struct {
 	Conn         net.Conn
 	replicaStats *ReplicaStats
+}
+
+type WriteCommand interface {
+	RESPCommand
+	IsWriteCommand() bool
+}
+
+type BaseWriteCommand struct{}
+
+func (BaseWriteCommand) IsWriteCommand() bool {
+	return true
 }
