@@ -109,9 +109,11 @@ func (g *GetCommand) Execute(context CommandContext) RESPValue {
 	value, ok := store.Get(g.values[1].String)
 
 	if !ok {
+		log.Printf("on get command, key %s, doesn't exists.\n", g.values[1].String)
 		return RESPValue{Type: BulkString, IsNil: true}
 	}
 
+	log.Printf("on get command, key: %s, value: %s", g.values[1].String, value.Val)
 	return RESPValue{Type: BulkString, String: value.Val}
 }
 
