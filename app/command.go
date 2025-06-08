@@ -230,8 +230,11 @@ func (r *ReplConfCommand) Execute(context CommandContext) RESPValue {
 			return RESPValue{Type: Error, String: "ERR wrong number of arguments for REPLCONF ACK"}
 		}
 
+		log.Println("########################1########################")
 		offsetStr := r.Args()[2].String
+		log.Println("########################22########################")
 		offset, err := strconv.ParseInt(offsetStr, 10, 64)
+		log.Println("########################3########################")
 		if err != nil {
 			return RESPValue{Type: Error, String: "ERR invalid offset in REPLCONF ACK"}
 		}
