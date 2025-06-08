@@ -12,6 +12,8 @@ import (
 	"time"
 )
 
+const maxWait = 30 * time.Second
+
 type ConnectionHandler interface {
 	HandleConnection() error
 	Close()
@@ -90,17 +92,18 @@ func conntectToMaster(host, port string) (net.Conn, error) {
 	return conn, nil
 }
 
-func handleConnection(conn net.Conn) (shouldClose bool) {
-	shouldClose = true
+func handleConnection(conn net.Conn) (handOffConnection bool) {
+	handOffConnection = true
 	reader := NewTrackingBufReader(conn)
 	log.Println("New connection")
 
 	defer func() {
-		if shouldClose {
+		if handOffConnection {
 			log.Println("closing connection")
 			conn.Close()
 		} else {
 			log.Println("connection handed off to another routine")
+			go initiateCommandExecutionLoop(conn, reader, nil)
 		}
 	}()
 
@@ -114,12 +117,11 @@ func handleConnection(conn net.Conn) (shouldClose bool) {
 		afterCommadFunc := func(cmd RESPCommand, commandResult RESPValue) error {
 			err := writeSerializedDataToConnection(conn, commandResult)
 			if err != nil {
-				log.Println("failed to write serialized data to connection: ", err)
 				return err
 			}
 			if ka, ok := cmd.(KeepAliveCommand); ok && ka.KeepsConnectionAlive() {
 				log.Println("Command takes over connection lifecycle")
-				shouldClose = false
+				handOffConnection = false
 				return err
 			}
 
@@ -189,17 +191,27 @@ func (handler *ReplicaConnectionHandler) handleReplication() error {
 		return err
 	}
 	stats := &ReplicaTrackingBytes{}
-	go handler.startReplicationRead(conn, trackBufReader, stats)
+	go handler.startReplicationRead(conn, trackBufReader, stats, maxWait)
 	return nil
 }
 
-func (handler *ReplicaConnectionHandler) startReplicationRead(conn net.Conn, reader *TrackingBufReader, replicaStats *ReplicaTrackingBytes) {
+func (handler *ReplicaConnectionHandler) startReplicationRead(conn net.Conn, reader *TrackingBufReader, replicaStats *ReplicaTrackingBytes, timeout time.Duration) {
+	deadline := time.Now().Add(timeout)
 	for !handler.readyToServe.Load() {
 		log.Println("[REPLICA] Not ready yet, blocking client")
 		time.Sleep(10 * time.Millisecond)
+		if time.Now().After(deadline) {
+			log.Println("[REPLICA] timed out waiting to become ready")
+			return
+		}
 	}
-	log.Println("[REPLICA] accepting connections")
 
+	log.Println("[REPLICA] accepting connections")
+	initiateCommandExecutionLoop(conn, reader, replicaStats)
+}
+
+func initiateCommandExecutionLoop(conn net.Conn, reader *TrackingBufReader, replicaStats *ReplicaTrackingBytes) {
+	defer conn.Close()
 	for {
 		cmd, _, err := parseRESPCommand(reader)
 		if err != nil {
@@ -207,20 +219,21 @@ func (handler *ReplicaConnectionHandler) startReplicationRead(conn net.Conn, rea
 			return
 		}
 
-		afterCommadFunc := func(cmd RESPCommand, commandResult RESPValue) error {
+		afterCommandFunc := func(cmd RESPCommand, commandResult RESPValue) error {
 			if sendResponseToMasterCommand, ok := cmd.(SendResonseToMaster); ok && sendResponseToMasterCommand.ShouldResponseBackToMaster() {
 				log.Printf("[REPLICA] writing response to master")
-				err = writeSerializedDataToConnection(conn, commandResult)
-				if err != nil {
-					log.Println("fialed to write serialized data to connection: ", err)
-					return err
+				writeErr := writeSerializedDataToConnection(conn, commandResult)
+				if writeErr != nil {
+					return writeErr
 				}
 			}
-			reader.FlushTo(replicaStats)
+			if replicaStats != nil {
+				reader.FlushTo(replicaStats)
+			}
 			return nil
 		}
 
-		executeRespCommand(cmd, CommandContext{Conn: conn, replicaStats: replicaStats}, &ExcecuteCommandHook{AfterCommndFunc: afterCommadFunc})
+		executeRespCommand(cmd, CommandContext{Conn: conn, replicaStats: replicaStats}, &ExcecuteCommandHook{AfterCommndFunc: afterCommandFunc})
 	}
 }
 
