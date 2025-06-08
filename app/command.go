@@ -238,7 +238,7 @@ func (r *ReplConfCommand) Execute(context CommandContext) RESPValue {
 		}
 		log.Printf("[REPLCONF], offset: %s acked for address: %s", offsetStr, context.Conn.RemoteAddr())
 		UpdateReplicaAckOffsetByConn(context.Conn, offset)
-		return RESPValue{Type: SimpleString, String: "OK"}
+		return RESPValue{}
 	}
 
 	// Default key-value case
