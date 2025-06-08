@@ -316,6 +316,7 @@ func (w *WaitCommand) Execute(ctx CommandContext) RESPValue {
 		acked := 0
 		for _, replicateState := range GetAllConnectedReplicas() {
 			if !replicateState.NeedsAck() {
+				log.Println("[WAIT] acked command for replica: ", replicateState.Addr)
 				acked++
 				continue
 			}
