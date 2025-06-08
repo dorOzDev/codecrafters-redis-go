@@ -225,6 +225,7 @@ func (r *ReplConfCommand) Execute(context CommandContext) RESPValue {
 			},
 		}
 	} else if subCmd == "ack" {
+		log.Println("[REPLCONF] recived ack")
 		if len(r.Args()) != 3 {
 			return RESPValue{Type: Error, String: "ERR wrong number of arguments for REPLCONF ACK"}
 		}
@@ -234,7 +235,7 @@ func (r *ReplConfCommand) Execute(context CommandContext) RESPValue {
 		if err != nil {
 			return RESPValue{Type: Error, String: "ERR invalid offset in REPLCONF ACK"}
 		}
-
+		log.Printf("[REPLCONF], offset: %s acked for address: %s", offsetStr, context.Conn.RemoteAddr())
 		UpdateReplicaAckOffsetByConn(context.Conn, offset)
 		return RESPValue{Type: SimpleString, String: "OK"}
 	}
@@ -331,6 +332,7 @@ func (w *WaitCommand) Execute(ctx CommandContext) RESPValue {
 		}
 
 		if acked >= numReplicas {
+			log.Println("[WAIT]acked number of request replicas: ", numReplicas)
 			return RESPValue{
 				Type:    Integer,
 				Integer: int64(acked),
@@ -338,6 +340,7 @@ func (w *WaitCommand) Execute(ctx CommandContext) RESPValue {
 		}
 
 		if time.Now().After(deadline) {
+			log.Printf("[WAIT]time out of: %s has reached, acked %d out of %d", deadline, acked, numReplicas)
 			return RESPValue{
 				Type:    Integer,
 				Integer: int64(acked),
