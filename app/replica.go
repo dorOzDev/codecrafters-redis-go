@@ -93,7 +93,7 @@ func broadcastToReplicas(resp RESPValue) {
 
 func sendAckToReplica(conn net.Conn) (int64, error) {
 	log.Println("sending REPLCONF GETACK * to replica")
-	_, err := conn.Write([]byte("*3\r\n$8\r\nREPLCONF\r\n$6\r\ngetack\r\n$1\r\n*\r\n"))
+	_, err := conn.Write([]byte("*3\r\n$8\r\nREPLCONF\r\n$6\r\nGETACK\r\n$1\r\n*\r\n"))
 	if err != nil {
 		log.Printf("Failed to send REPLCONF GETACK *: %v", err)
 		return 0, err
