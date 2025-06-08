@@ -1,30 +1,25 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net"
-	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 )
 
 var (
-	replicaMu         sync.RWMutex
-	connectedReplicas = make(map[net.Conn]*ReplicaState)
+	connectedReplicas sync.Map
 )
+
 var totalBytes atomic.Int64
 
 func registerReplica(conn net.Conn) {
-	replicaMu.Lock()
-	defer replicaMu.Unlock()
 
-	connectedReplicas[conn] = &ReplicaState{
+	connectedReplicas.Store(conn, &ReplicaState{
 		Conn: conn,
 		Addr: conn.RemoteAddr().String(),
-	}
+	})
 
 	log.Printf("Registered replica: %s\n", conn.RemoteAddr().String())
 	// TODO rethink of the monitor mechanism - temporary disable
@@ -37,7 +32,7 @@ func monitorReplicaConnection(conn net.Conn) {
 		defer ticker.Stop()
 
 		for range ticker.C {
-			_, err := sendAckToReplica(conn)
+			err := sendAckToReplica(conn)
 			if err != nil {
 				log.Printf("Replica %v is unreachable (ping failed): %v", conn.RemoteAddr(), err)
 				unregisterReplica(conn)
@@ -48,23 +43,23 @@ func monitorReplicaConnection(conn net.Conn) {
 }
 
 func GetAllConnectedReplicas() []*ReplicaState {
-	replicaMu.RLock()
-	defer replicaMu.RUnlock()
+	var replicasState []*ReplicaState
 
-	replicasState := make([]*ReplicaState, 0, len(connectedReplicas))
-	for _, replica := range connectedReplicas {
+	connectedReplicas.Range(func(_ any, value any) bool {
+		replica := value.(*ReplicaState)
 		replicasState = append(replicasState, replica)
-	}
+		return true
+	})
+
 	return replicasState
 }
 
 func unregisterReplica(conn net.Conn) {
-	replicaMu.Lock()
-	defer replicaMu.Unlock()
-
-	if r, ok := connectedReplicas[conn]; ok {
-		log.Printf("Unregistering replica: %s\n", r.Addr)
-		delete(connectedReplicas, conn)
+	val, ok := connectedReplicas.Load(conn)
+	if ok {
+		replica := val.(*ReplicaState)
+		log.Printf("Unregistering replica: %s\n", replica.Addr)
+		connectedReplicas.Delete(conn)
 		conn.Close() // optionally close
 	}
 }
@@ -76,57 +71,32 @@ func broadcastToReplicas(resp RESPValue) {
 		return
 	}
 
-	replicaMu.RLock()
-	defer replicaMu.RUnlock()
-
 	newOffset := totalBytes.Add(int64(len(data)))
-	for conn, state := range connectedReplicas {
+
+	connectedReplicas.Range(func(key, value any) bool {
+		conn := key.(net.Conn)
+		state := value.(*ReplicaState)
+
 		if _, err := conn.Write(data); err != nil {
 			log.Printf("Replica write failed: %v — removing", err)
-			replicaMu.RUnlock()
 			unregisterReplica(conn)
-			replicaMu.RLock()
+			return true // continue with next replica
 		}
+
 		state.PendingOffset = newOffset
-	}
+		return true
+	})
 }
 
-func sendAckToReplica(conn net.Conn) (int64, error) {
+func sendAckToReplica(conn net.Conn) error {
 	log.Println("sending REPLCONF GETACK * to replica")
 	_, err := conn.Write([]byte("*3\r\n$8\r\nREPLCONF\r\n$6\r\nGETACK\r\n$1\r\n*\r\n"))
 	if err != nil {
 		log.Printf("Failed to send REPLCONF GETACK *: %v", err)
-		return 0, err
+		return err
 	}
 
-	// Wait for ACK response
-	reader := NewTrackingBufReader(conn)
-	val, err := parseRESPValue(reader)
-	if err != nil {
-		log.Printf("Failed to read ACK from replica: %v", err)
-		return 0, err
-	}
-
-	// Expecting something like: ["REPLCONF", "ACK", "12345"]
-	if val.Type != Array || len(val.Array) != 3 {
-		return 0, fmt.Errorf("unexpected ACK response format: %v", val)
-	}
-
-	cmd := strings.ToUpper(val.Array[0].String)
-	subCmd := strings.ToUpper(val.Array[1].String)
-	offsetStr := val.Array[2].String
-
-	if cmd != "REPLCONF" || subCmd != "ACK" {
-		return 0, fmt.Errorf("unexpected response: %s %s", cmd, subCmd)
-	}
-
-	offset, err := strconv.ParseInt(offsetStr, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("invalid offset in ACK: %v", err)
-	}
-
-	log.Printf("Replica acknowledged offset: %d", offset)
-	return offset, nil
+	return nil
 }
 
 type ReplicaState struct {
@@ -144,7 +114,7 @@ func (replicateState *ReplicaState) NeedsAck() bool {
 	return replicateState.LastAckOffset < replicateState.PendingOffset
 }
 
-func (replicaState *ReplicaState) UpdateAckOffset(throttle time.Duration) error {
+func (replicaState *ReplicaState) SendAck(throttle time.Duration) error {
 	replicaState.Mu.Lock()
 	defer replicaState.Mu.Unlock()
 
@@ -155,11 +125,24 @@ func (replicaState *ReplicaState) UpdateAckOffset(throttle time.Duration) error 
 	}
 	replicaState.LastAckRequest = now
 
-	offset, err := sendAckToReplica(replicaState.Conn)
+	err := sendAckToReplica(replicaState.Conn)
 	if err != nil {
 		return err
 	}
 
-	replicaState.LastAckOffset = offset
 	return nil
+}
+
+func UpdateReplicaAckOffsetByConn(conn net.Conn, offset int64) {
+	val, ok := connectedReplicas.Load(conn)
+	if !ok {
+		log.Printf("UpdateReplicaAckOffsetByConn: no ReplicaState found for connection %v", conn.RemoteAddr())
+		return
+	}
+
+	rs := val.(*ReplicaState)
+	rs.Mu.Lock()
+	defer rs.Mu.Unlock()
+	rs.LastAckOffset = offset
+	log.Printf("Replica [%v] updated ACK offset to %d", conn.RemoteAddr(), offset)
 }

@@ -224,6 +224,19 @@ func (r *ReplConfCommand) Execute(context CommandContext) RESPValue {
 				{Type: BulkString, String: strconv.FormatUint(offset, 10)},
 			},
 		}
+	} else if subCmd == "ack" {
+		if len(r.Args()) != 3 {
+			return RESPValue{Type: Error, String: "ERR wrong number of arguments for REPLCONF ACK"}
+		}
+
+		offsetStr := r.Args()[2].String
+		offset, err := strconv.ParseInt(offsetStr, 10, 64)
+		if err != nil {
+			return RESPValue{Type: Error, String: "ERR invalid offset in REPLCONF ACK"}
+		}
+
+		UpdateReplicaAckOffsetByConn(context.Conn, offset)
+		return RESPValue{Type: SimpleString, String: "OK"}
 	}
 
 	// Default key-value case
@@ -308,7 +321,7 @@ func (w *WaitCommand) Execute(ctx CommandContext) RESPValue {
 			}
 			// Still needs ACK — trigger GETACK
 			go func(repicaState *ReplicaState) {
-				if err := repicaState.UpdateAckOffset(100 * time.Millisecond); err != nil {
+				if err := repicaState.SendAck(100 * time.Millisecond); err != nil {
 					log.Printf("[WAIT] retry ack failed: %v", err)
 				} else {
 					log.Printf("expected bytes: %d, actual bytes: %d", repicaState.PendingOffset, repicaState.LastAckOffset)
