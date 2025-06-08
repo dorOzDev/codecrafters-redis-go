@@ -103,7 +103,6 @@ func handleConnection(conn net.Conn) (handOffConnection bool) {
 			conn.Close()
 		} else {
 			log.Println("connection handed off to another routine")
-			go initiateCommandExecutionLoop(conn, reader, nil)
 		}
 	}()
 
@@ -122,6 +121,7 @@ func handleConnection(conn net.Conn) (handOffConnection bool) {
 			if ka, ok := cmd.(KeepAliveCommand); ok && ka.KeepsConnectionAlive() {
 				log.Println("Command takes over connection lifecycle")
 				handOffConnection = false
+				go initiateCommandExecutionLoop(conn, reader, nil)
 			}
 
 			if replicableCommand, ok := cmd.(WriteCommand); ok {
