@@ -122,7 +122,6 @@ func handleConnection(conn net.Conn) (handOffConnection bool) {
 			if ka, ok := cmd.(KeepAliveCommand); ok && ka.KeepsConnectionAlive() {
 				log.Println("Command takes over connection lifecycle")
 				handOffConnection = false
-				return err
 			}
 
 			if replicableCommand, ok := cmd.(WriteCommand); ok {
