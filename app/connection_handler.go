@@ -105,51 +105,74 @@ func handleConnection(conn net.Conn) (shouldClose bool) {
 	}()
 
 	for {
-		val, err := parseRESPValue(reader)
-		if err != nil {
-			log.Println("parseRESPValue error:", err)
-			return
-		}
-
-		if val.Type != Array {
-			fmt.Fprintln(conn, "-ERR expected array")
-			return
-		}
-
-		cmd, err := ParseRESPCommandFromArray(val.Array)
+		cmd, respVal, err := parseRESPCommand(reader)
 		if err != nil {
 			fmt.Fprintf(conn, "-ERR %v\r\n", err)
 			return
 		}
-		log.Println("executing command:", cmd)
-		response := cmd.Execute(CommandContext{Conn: conn})
 
-		err = writeSerializedDataToConnection(conn, response)
-		if err != nil {
-			log.Println("fialed to write serialized data to connection: ", err)
-			return
-		}
-
-		if postAction, ok := cmd.(PostCommandExecuteAction); ok {
-			if err := postAction.HandlePostWrite(conn); err != nil {
-				log.Printf("Post-Execution action failed: %v", err)
-				return
+		afterCommadFunc := func(cmd RESPCommand, commandResult RESPValue) error {
+			err := writeSerializedDataToConnection(conn, commandResult)
+			if err != nil {
+				log.Println("failed to write serialized data to connection: ", err)
+				return err
 			}
-		}
-
-		if ka, ok := cmd.(KeepAliveCommand); ok && ka.KeepsConnectionAlive() {
-			log.Println("Command takes over connection lifecycle")
-			shouldClose = false
-			return
-		}
-
-		if replicableCommand, ok := cmd.(WriteCommand); ok {
-			if replicableCommand.ShouldReplicate() {
-				log.Println("Replicating command to all replicas")
-				broadcastToReplicas(RESPValue{Type: Array, Array: val.Array})
+			if ka, ok := cmd.(KeepAliveCommand); ok && ka.KeepsConnectionAlive() {
+				log.Println("Command takes over connection lifecycle")
+				shouldClose = false
+				return err
 			}
+
+			if replicableCommand, ok := cmd.(WriteCommand); ok {
+				if replicableCommand.ShouldReplicate() {
+					log.Println("Replicating command to all replicas")
+					broadcastToReplicas(respVal)
+				}
+			}
+			if postAction, ok := cmd.(PostCommandExecuteAction); ok {
+				if err := postAction.HandlePostWrite(conn); err != nil {
+					log.Printf("Post-Execution action failed: %v", err)
+					return err
+				}
+			}
+			return nil
 		}
+
+		executeRespCommand(cmd, CommandContext{Conn: conn}, &ExcecuteCommandHook{AfterCommndFunc: afterCommadFunc})
 	}
+}
+
+type ExcecuteCommandHook struct {
+	BeforeParseFunc func() error
+	AfterCommndFunc func(cmd RESPCommand, commnandResult RESPValue) error
+}
+
+func executeRespCommand(cmd RESPCommand, commandContext CommandContext, commandExecutionHook *ExcecuteCommandHook) {
+	log.Println("executing command:", cmd)
+	response := cmd.Execute(commandContext)
+
+	if commandExecutionHook != nil && commandExecutionHook.AfterCommndFunc != nil {
+		log.Println("runnin after command executed code")
+		commandExecutionHook.AfterCommndFunc(cmd, response)
+	}
+}
+
+func parseRESPCommand(reader *TrackingBufReader) (RESPCommand, RESPValue, error) {
+	val, err := parseRESPValue(reader)
+	if err != nil {
+		return nil, RESPValue{}, fmt.Errorf("parseRESPValue error: %w", err)
+	}
+
+	if val.Type != Array {
+		return nil, val, fmt.Errorf("invalid RESP type: %v", val.Type)
+	}
+
+	cmd, err := ParseRESPCommandFromArray(val.Array)
+	if err != nil {
+		return nil, val, fmt.Errorf("command parse error: %w", err)
+	}
+
+	return cmd, val, nil
 }
 
 func (handler *ReplicaConnectionHandler) handleReplication() error {
@@ -178,32 +201,26 @@ func (handler *ReplicaConnectionHandler) startReplicationRead(conn net.Conn, rea
 	log.Println("[REPLICA] accepting connections")
 
 	for {
-		val, err := parseRESPValue(reader)
+		cmd, _, err := parseRESPCommand(reader)
 		if err != nil {
-			log.Printf("[REPLICA] read error: %v", err)
+			fmt.Fprintf(conn, "-ERR %v\r\n", err)
 			return
 		}
 
-		log.Printf("Received replicated command: %+v", val)
-
-		cmd, err := ParseRESPCommandFromArray(val.Array)
-		if err != nil {
-			log.Printf("Parse error: %v", err)
-			continue
-		}
-		response := cmd.Execute(CommandContext{
-			Conn:         conn,
-			replicaStats: replicaStats,
-		})
-		if sendResponseToMasterCommand, ok := cmd.(SendResonseToMaster); ok && sendResponseToMasterCommand.ShouldResponseBackToMaster() {
-			log.Printf("[REPLICA] writing response to master")
-			err = writeSerializedDataToConnection(conn, response)
-			if err != nil {
-				log.Println("fialed to write serialized data to connection: ", err)
-				return
+		afterCommadFunc := func(cmd RESPCommand, commandResult RESPValue) error {
+			if sendResponseToMasterCommand, ok := cmd.(SendResonseToMaster); ok && sendResponseToMasterCommand.ShouldResponseBackToMaster() {
+				log.Printf("[REPLICA] writing response to master")
+				err = writeSerializedDataToConnection(conn, commandResult)
+				if err != nil {
+					log.Println("fialed to write serialized data to connection: ", err)
+					return err
+				}
 			}
+			reader.FlushTo(replicaStats)
+			return nil
 		}
-		reader.FlushTo(replicaStats)
+
+		executeRespCommand(cmd, CommandContext{Conn: conn, replicaStats: replicaStats}, &ExcecuteCommandHook{AfterCommndFunc: afterCommadFunc})
 	}
 }
 
