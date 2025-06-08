@@ -151,7 +151,7 @@ func (t *TrackingBufReader) ReadFull(p []byte) error {
 	return err
 }
 
-func (t *TrackingBufReader) FlushTo(stats *ReplicaStats) {
+func (t *TrackingBufReader) FlushTo(stats *ReplicaTrackingBytes) {
 	log.Println("Flushin bytes: ", t.bytesRead)
 	stats.writeBytes(t.bytesRead)
 	t.bytesRead = 0
