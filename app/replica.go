@@ -47,15 +47,15 @@ func monitorReplicaConnection(conn net.Conn) {
 	}()
 }
 
-func GetAllConnectedReplicas() []net.Conn {
+func GetAllConnectedReplicas() []*ReplicaState {
 	replicaMu.RLock()
 	defer replicaMu.RUnlock()
 
-	conns := make([]net.Conn, 0, len(connectedReplicas))
-	for conn := range connectedReplicas {
-		conns = append(conns, conn)
+	replicasState := make([]*ReplicaState, 0, len(connectedReplicas))
+	for _, replica := range connectedReplicas {
+		replicasState = append(replicasState, replica)
 	}
-	return conns
+	return replicasState
 }
 
 func unregisterReplica(conn net.Conn) {
@@ -90,6 +90,7 @@ func broadcastToReplicas(resp RESPValue) {
 		state.PendingOffset = newOffset
 	}
 }
+
 func sendAckToReplica(conn net.Conn) (int64, error) {
 	log.Println("sending REPLCONF GETACK * to replica")
 	_, err := conn.Write([]byte("*3\r\n$8\r\nREPLCONF\r\n$6\r\ngetack\r\n$1\r\n*\r\n"))
@@ -129,15 +130,36 @@ func sendAckToReplica(conn net.Conn) (int64, error) {
 }
 
 type ReplicaState struct {
-	Conn          net.Conn
-	Addr          string
-	LastAckOffset int64
-	PendingOffset int64
-	Mu            sync.Mutex
+	Conn           net.Conn
+	Addr           string
+	LastAckOffset  int64
+	PendingOffset  int64
+	LastAckRequest time.Time
+	Mu             sync.Mutex
 }
 
-func (r *ReplicaState) NeedsAck() bool {
-	r.Mu.Lock()
-	defer r.Mu.Unlock()
-	return r.LastAckOffset < r.PendingOffset
+func (replicateState *ReplicaState) NeedsAck() bool {
+	replicateState.Mu.Lock()
+	defer replicateState.Mu.Unlock()
+	return replicateState.LastAckOffset < replicateState.PendingOffset
+}
+
+func (replicaState *ReplicaState) UpdateAckOffset(throttle time.Duration) error {
+	replicaState.Mu.Lock()
+	defer replicaState.Mu.Unlock()
+
+	now := time.Now()
+	if now.Sub(replicaState.LastAckRequest) < throttle {
+		log.Printf("replica is throttled, skipping send GETACK")
+		return nil
+	}
+	replicaState.LastAckRequest = now
+
+	offset, err := sendAckToReplica(replicaState.Conn)
+	if err != nil {
+		return err
+	}
+
+	replicaState.LastAckOffset = offset
+	return nil
 }

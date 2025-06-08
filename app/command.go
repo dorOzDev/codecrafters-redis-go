@@ -284,11 +284,53 @@ func (w *WaitCommand) Execute(ctx CommandContext) RESPValue {
 			String: "ERR wrong number of arguments for 'WAIT' command",
 		}
 	}
-	replicasConnections := GetAllConnectedReplicas()
 
-	return RESPValue{
-		Type:    Integer,
-		Integer: int64(len(replicasConnections)),
+	numReplicas, err := strconv.Atoi(w.Args()[1].String)
+	if err != nil || numReplicas < 0 {
+		return RESPValue{Type: Error, String: "ERR invalid number of replicas"}
+	}
+
+	timeoutMs, err := strconv.Atoi(w.Args()[2].String)
+	if err != nil || timeoutMs < 0 {
+		return RESPValue{Type: Error, String: "ERR invalid timeout"}
+	}
+
+	deadline := time.Now().Add(time.Duration(timeoutMs) * time.Millisecond)
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		acked := 0
+		for _, replicateState := range GetAllConnectedReplicas() {
+			if !replicateState.NeedsAck() {
+				acked++
+				continue
+			}
+			// Still needs ACK — trigger GETACK
+			go func(repicaState *ReplicaState) {
+				if err := repicaState.UpdateAckOffset(100 * time.Millisecond); err != nil {
+					log.Printf("[WAIT] retry ack failed: %v", err)
+				} else {
+					log.Printf("expected bytes: %d, actual bytes: %d", repicaState.PendingOffset, repicaState.LastAckOffset)
+				}
+			}(replicateState)
+		}
+
+		if acked >= numReplicas {
+			return RESPValue{
+				Type:    Integer,
+				Integer: int64(acked),
+			}
+		}
+
+		if time.Now().After(deadline) {
+			return RESPValue{
+				Type:    Integer,
+				Integer: int64(acked),
+			}
+		}
+
+		<-ticker.C
 	}
 }
 
@@ -434,14 +476,8 @@ func streamRdbFileToReplica(conn net.Conn) error {
 
 func generateEmptyRDB() []byte {
 	var buf bytes.Buffer
-
-	// Magic header: REDIS0009 or REDIS0012 etc.
 	buf.WriteString("REDIS0012")
-
-	// EOF opcode
 	buf.WriteByte(0xFF)
-
-	// 8-byte CRC64 (set to 0 for now unless you want to compute it)
 	buf.Write(make([]byte, 8))
 
 	return buf.Bytes()
@@ -459,7 +495,8 @@ func getRDBPath() string {
 	return rdbPath
 }
 
-type ReplicableCommand interface {
+type WriteCommand interface {
+	RESPCommand
 	ShouldReplicate() bool
 }
 
@@ -473,12 +510,7 @@ func (r *ReplConfCommand) ShouldResponseBackToMaster() bool {
 
 type CommandContext struct {
 	Conn         net.Conn
-	replicaStats *ReplicaStats
-}
-
-type WriteCommand interface {
-	RESPCommand
-	IsWriteCommand() bool
+	replicaStats *ReplicaTrackingBytes
 }
 
 type BaseWriteCommand struct{}
