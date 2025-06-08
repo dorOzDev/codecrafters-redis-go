@@ -7,24 +7,27 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 var (
 	replicaMu         sync.RWMutex
-	connectedReplicas = make(map[net.Conn]*Replica)
+	connectedReplicas = make(map[net.Conn]*ReplicaState)
 )
+var totalBytes atomic.Int64
 
 func registerReplica(conn net.Conn) {
 	replicaMu.Lock()
 	defer replicaMu.Unlock()
 
-	connectedReplicas[conn] = &Replica{
+	connectedReplicas[conn] = &ReplicaState{
 		Conn: conn,
 		Addr: conn.RemoteAddr().String(),
 	}
 
 	log.Printf("Registered replica: %s\n", conn.RemoteAddr().String())
+
 	monitorReplicaConnection(conn)
 }
 
@@ -76,13 +79,15 @@ func broadcastToReplicas(resp RESPValue) {
 	replicaMu.RLock()
 	defer replicaMu.RUnlock()
 
-	for conn := range connectedReplicas {
+	newOffset := totalBytes.Add(int64(len(data)))
+	for conn, state := range connectedReplicas {
 		if _, err := conn.Write(data); err != nil {
 			log.Printf("Replica write failed: %v — removing", err)
 			replicaMu.RUnlock()
 			unregisterReplica(conn)
 			replicaMu.RLock()
 		}
+		state.PendingOffset = newOffset
 	}
 }
 func sendAckToReplica(conn net.Conn) (int64, error) {
@@ -123,7 +128,16 @@ func sendAckToReplica(conn net.Conn) (int64, error) {
 	return offset, nil
 }
 
-type Replica struct {
-	Conn net.Conn
-	Addr string
+type ReplicaState struct {
+	Conn          net.Conn
+	Addr          string
+	LastAckOffset int64
+	PendingOffset int64
+	Mu            sync.Mutex
+}
+
+func (r *ReplicaState) NeedsAck() bool {
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
+	return r.LastAckOffset < r.PendingOffset
 }
