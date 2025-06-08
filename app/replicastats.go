@@ -2,10 +2,10 @@ package main
 
 import "sync/atomic"
 
-type ReplicaStats struct {
+type ReplicaTrackingBytes struct {
 	BytesRead uint64
 }
 
-func (r *ReplicaStats) writeBytes(n int) {
+func (r *ReplicaTrackingBytes) writeBytes(n int) {
 	atomic.AddUint64(&r.BytesRead, uint64(n))
 }

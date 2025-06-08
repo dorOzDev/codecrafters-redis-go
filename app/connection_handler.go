@@ -143,7 +143,7 @@ func handleConnection(conn net.Conn) (shouldClose bool) {
 			return
 		}
 
-		if replicableCommand, ok := cmd.(ReplicableCommand); ok {
+		if replicableCommand, ok := cmd.(WriteCommand); ok {
 			if replicableCommand.ShouldReplicate() {
 				log.Println("Replicating command to all replicas")
 				broadcastToReplicas(RESPValue{Type: Array, Array: val.Array})
@@ -165,12 +165,12 @@ func (handler *ReplicaConnectionHandler) handleReplication() error {
 		log.Printf("Replication handshake with master failed: %v", err)
 		return err
 	}
-	stats := &ReplicaStats{}
+	stats := &ReplicaTrackingBytes{}
 	go handler.startReplicationRead(conn, trackBufReader, stats)
 	return nil
 }
 
-func (handler *ReplicaConnectionHandler) startReplicationRead(conn net.Conn, reader *TrackingBufReader, replicaStats *ReplicaStats) {
+func (handler *ReplicaConnectionHandler) startReplicationRead(conn net.Conn, reader *TrackingBufReader, replicaStats *ReplicaTrackingBytes) {
 	for !handler.readyToServe.Load() {
 		log.Println("[REPLICA] Not ready yet, blocking client")
 		time.Sleep(10 * time.Millisecond)
