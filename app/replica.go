@@ -27,8 +27,8 @@ func registerReplica(conn net.Conn) {
 	}
 
 	log.Printf("Registered replica: %s\n", conn.RemoteAddr().String())
-
-	monitorReplicaConnection(conn)
+	// TODO rethink of the monitor mechanism - temporary disable
+	//monitorReplicaConnection(conn)
 }
 
 func monitorReplicaConnection(conn net.Conn) {
