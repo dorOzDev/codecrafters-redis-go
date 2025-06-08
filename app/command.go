@@ -226,12 +226,12 @@ func (r *ReplConfCommand) Execute(context CommandContext) RESPValue {
 		}
 	} else if subCmd == "ack" {
 		log.Println("[REPLCONF] recived ack")
-		if len(r.Args()) != 3 {
-			log.Printf("[WAIT-ack] expected 3 args but got: %d, args: %v", len(r.Args()), r.Args())
+		if len(r.Args()) != 2 {
+			log.Printf("[WAIT-ack] expected 2 args but got: %d, args: %v", len(r.Args()), r.Args())
 			return RESPValue{Type: Error, String: "ERR wrong number of arguments for REPLCONF ACK"}
 		}
 
-		offsetStr := r.Args()[2].String
+		offsetStr := r.Args()[1].String
 		offset, err := strconv.ParseInt(offsetStr, 10, 64)
 		if err != nil {
 			return RESPValue{Type: Error, String: "ERR invalid offset in REPLCONF ACK"}
