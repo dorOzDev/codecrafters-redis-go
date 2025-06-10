@@ -24,6 +24,7 @@ const (
 	CommandREPL   = "REPLCONF"
 	CommandPSYNC  = "PSYNC"
 	CommandWAIT   = "WAIT"
+	CommandTYPE   = "TYPE"
 )
 
 type RESPCommand interface {
@@ -91,6 +92,7 @@ func (s *SetCommand) Execute(context CommandContext) RESPValue {
 	store.Set(key, Entry{
 		Val:      value,
 		ExpireAt: expireAt,
+		Type:     StringEntryType,
 	})
 
 	return RESPValue{Type: SimpleString, String: "OK"}
@@ -350,6 +352,31 @@ func (w *WaitCommand) Execute(ctx CommandContext) RESPValue {
 
 		<-ticker.C
 	}
+}
+
+type TypeCommand struct {
+	values []RESPValue
+}
+
+func (t *TypeCommand) Name() string {
+	return CommandTYPE
+}
+
+func (t *TypeCommand) Args() []RESPValue {
+	return t.values[1:]
+}
+
+func (t *TypeCommand) Execute(ctx CommandContext) RESPValue {
+	log.Println("[Type] in type command")
+	if len(t.Args()) != 1 {
+		return RESPValue{Type: Error, String: "invalid number of arguments for Type command"}
+	}
+
+	val, exists := store.Get(t.Args()[1].String)
+	if !exists {
+		return RESPValue{Type: SimpleString, String: string(MissingEntryType)}
+	}
+	return RESPValue{Type: SimpleString, String: string(val.Type)}
 }
 
 type CommandFactory func([]RESPValue) RESPCommand

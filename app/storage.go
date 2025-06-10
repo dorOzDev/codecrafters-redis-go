@@ -89,4 +89,12 @@ func (store *inMemoryStore) Keys() []string {
 type Entry struct {
 	Val      string
 	ExpireAt *int64
+	Type     EntryType
 }
+
+type EntryType string
+
+const (
+	StringEntryType  EntryType = "string"
+	MissingEntryType EntryType = "none"
+)
