@@ -372,7 +372,7 @@ func (t *TypeCommand) Execute(ctx CommandContext) RESPValue {
 		return RESPValue{Type: Error, String: "invalid number of arguments for Type command"}
 	}
 
-	val, exists := store.Get(t.Args()[1].String)
+	val, exists := store.Get(t.Args()[0].String)
 	if !exists {
 		return RESPValue{Type: SimpleString, String: string(MissingEntryType)}
 	}
@@ -392,6 +392,7 @@ func init() {
 	commandRegistry[CommandREPL] = NewReplConfCommand
 	commandRegistry[CommandPSYNC] = NewPsyncCommand
 	commandRegistry[CommandWAIT] = NewCommandWait
+	commandRegistry[CommandTYPE] = NewTypeCommand
 }
 
 var commandRegistry = map[string]CommandFactory{}
@@ -451,6 +452,10 @@ func NewPsyncCommand(values []RESPValue) RESPCommand {
 
 func NewCommandWait(values []RESPValue) RESPCommand {
 	return &WaitCommand{values: values}
+}
+
+func NewTypeCommand(values []RESPValue) RESPCommand {
+	return &TypeCommand{values: values}
 }
 
 /**if any Post command action is required, the command can imlement this interface*/
