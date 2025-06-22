@@ -5,9 +5,18 @@ import (
 	"time"
 )
 
+type LookupStatus int
+
+const (
+	Found LookupStatus = iota
+	NotFound
+	Expired
+	WrongType
+)
+
 type Store interface {
 	Set(key string, value Entry)
-	Get(key string) (Entry, bool)
+	Get(key string, expectedType EntryType) (Entry, LookupStatus)
 	Keys() []string
 	Delete(key string) bool
 }
@@ -37,21 +46,25 @@ func (store *inMemoryStore) Set(key string, value Entry) {
 	}
 }
 
-func (store *inMemoryStore) Get(key string) (Entry, bool) {
+func (store *inMemoryStore) Get(key string, expectedType EntryType) (Entry, LookupStatus) {
 	store.mutex.RLock()
 	entry, ok := store.data[key]
 	store.mutex.RUnlock()
 
 	if !ok {
-		return Entry{}, false
+		return Entry{}, NotFound
 	}
 
 	if entry.IsExpired() {
 		store.Delete(key)
-		return Entry{}, false
+		return Entry{}, Expired
 	}
 
-	return entry, true
+	if expectedType != AnyEntryType && entry.Type != expectedType {
+		return Entry{}, WrongType
+	}
+
+	return entry, Found
 }
 
 func (e Entry) IsExpired() bool {
@@ -87,7 +100,7 @@ func (store *inMemoryStore) Keys() []string {
 }
 
 type Entry struct {
-	Val      string
+	Val      any
 	ExpireAt *int64
 	Type     EntryType
 }
@@ -95,6 +108,8 @@ type Entry struct {
 type EntryType string
 
 const (
+	StreamEntryType  EntryType = "stream"
 	StringEntryType  EntryType = "string"
+	AnyEntryType     EntryType = "any"
 	MissingEntryType EntryType = "none"
 )

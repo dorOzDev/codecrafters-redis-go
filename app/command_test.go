@@ -48,8 +48,8 @@ func TestSetCommand_NoTTL(t *testing.T) {
 
 	assert.Equal(t, "OK", resp.String)
 
-	entry, ok := store.Get("foo")
-	assert.True(t, ok)
+	entry, lookupStatus := store.Get("foo", StringEntryType)
+	assert.True(t, lookupStatus == Found)
 	assert.Equal(t, "bar", entry.Val)
 	assert.Nil(t, entry.ExpireAt)
 }
@@ -72,8 +72,9 @@ func TestSetCommand_WithTTL(t *testing.T) {
 
 	time.Sleep(60 * time.Millisecond)
 
-	_, ok := store.Get("expiring")
-	assert.False(t, ok)
+	_, lookpupStatus := store.Get("expiring", StreamEntryType)
+
+	assert.True(t, lookpupStatus == Expired)
 }
 
 func TestSetCommand_InvalidPX(t *testing.T) {

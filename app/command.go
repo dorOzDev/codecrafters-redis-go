@@ -25,6 +25,7 @@ const (
 	CommandPSYNC  = "PSYNC"
 	CommandWAIT   = "WAIT"
 	CommandTYPE   = "TYPE"
+	CommandXADD   = "XADD"
 )
 
 type RESPCommand interface {
@@ -109,15 +110,20 @@ func (g *GetCommand) Execute(context CommandContext) RESPValue {
 		return RESPValue{Type: Error, String: "ERR wrong number of argument for GET commands"}
 	}
 
-	value, ok := store.Get(g.values[1].String)
+	value, lookupStatus := store.Get(g.values[1].String, StringEntryType)
 
-	if !ok {
-		log.Printf("on get command, key %s, doesn't exists.\n", g.values[1].String)
-		return RESPValue{Type: BulkString, IsNil: true}
+	switch lookupStatus {
+	case NotFound, Expired:
+		{
+			return RESPValue{Type: BulkString, IsNil: true}
+		}
+	case WrongType:
+		{
+			return RESPValue{Type: Error, String: "ERR internal error: expected string value"}
+		}
 	}
 
-	log.Printf("on get command, key: %s, value: %s", g.values[1].String, value.Val)
-	return RESPValue{Type: BulkString, String: value.Val}
+	return RESPValue{Type: BulkString, String: value.Val.(string)}
 }
 
 type ConfigCommand struct {
@@ -372,11 +378,59 @@ func (t *TypeCommand) Execute(ctx CommandContext) RESPValue {
 		return RESPValue{Type: Error, String: "invalid number of arguments for Type command"}
 	}
 
-	val, exists := store.Get(t.Args()[0].String)
-	if !exists {
+	val, lookupStatus := store.Get(t.Args()[0].String, AnyEntryType)
+	if lookupStatus != Found {
 		return RESPValue{Type: SimpleString, String: string(MissingEntryType)}
 	}
 	return RESPValue{Type: SimpleString, String: string(val.Type)}
+}
+
+type XAddCommand struct {
+	values []RESPValue
+}
+
+func (xAdd *XAddCommand) Name() string {
+	return CommandXADD
+}
+
+func (xAdd *XAddCommand) Args() []RESPValue {
+	return xAdd.values[1:]
+}
+
+func (xAdd *XAddCommand) Execute(ctx CommandContext) RESPValue {
+	args := xAdd.Args()
+
+	if len(args) < 4 {
+		return RESPValue{Type: Error, String: "invalid number of arguments for 'xadd' command"}
+	}
+
+	// enriesMap, err := ConvertToFieldsMap(args[2:])
+	// if err != nil {
+	// 	log.Println("invalid key values arguments for 'xadd' command")
+	// 	return RESPValue{Type: Error, String: "invalid number of arguments for 'xadd' command"}
+	// }
+
+	// streamKey := args[0].String
+	// entryId := args[1].String
+
+	// ExecuteStreamEntryInsertion()
+
+	return RESPValue{}
+}
+
+func ConvertToFieldsMap(args []RESPValue) (map[string]string, error) {
+	if (len(args)-2)%2 != 0 {
+		return nil, fmt.Errorf("invliad number of arguments for conversion of args to a map")
+	}
+
+	fields := make(map[string]string, len(args)/2)
+	for i := 2; i < len(args); i += 2 {
+		field := args[i].String
+		value := args[i+1].String
+		fields[field] = value
+	}
+
+	return fields, nil
 }
 
 type CommandFactory func([]RESPValue) RESPCommand
@@ -393,6 +447,7 @@ func init() {
 	commandRegistry[CommandPSYNC] = NewPsyncCommand
 	commandRegistry[CommandWAIT] = NewCommandWait
 	commandRegistry[CommandTYPE] = NewTypeCommand
+	commandRegistry[CommandXADD] = NewXddCommand
 }
 
 var commandRegistry = map[string]CommandFactory{}
@@ -456,6 +511,10 @@ func NewCommandWait(values []RESPValue) RESPCommand {
 
 func NewTypeCommand(values []RESPValue) RESPCommand {
 	return &TypeCommand{values: values}
+}
+
+func NewXddCommand(values []RESPValue) RESPCommand {
+	return &XAddCommand{values: values}
 }
 
 /**if any Post command action is required, the command can imlement this interface*/

@@ -10,6 +10,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/hdt3213/rdb v1.1.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.8 // indirect
+	github.com/plar/go-adaptive-radix-tree v1.0.7 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/stretchr/testify v1.10.0 // indirect
 	github.com/taroim/rdb v0.0.0-20230411080031-693156fc3e2f // indirect
